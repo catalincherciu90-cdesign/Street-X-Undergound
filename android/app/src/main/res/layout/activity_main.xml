@@ -105,6 +105,25 @@
                 android:letterSpacing="0.06"
                 app:cornerRadius="12dp"
                 android:text="Conectează" />
+
+            <TextView
+                android:id="@+id/tvLoginErr"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:gravity="center"
+                android:textColor="#ff5b60"
+                android:textSize="13sp"
+                android:text="" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:gravity="center"
+                android:textColor="#7c9488"
+                android:textSize="12sp"
+                android:text="Ai nevoie de un cont (utilizator + parolă) creat de administrator în dashboard." />
         </LinearLayout>
 
         <!-- ECRAN PRINCIPAL (după login) -->

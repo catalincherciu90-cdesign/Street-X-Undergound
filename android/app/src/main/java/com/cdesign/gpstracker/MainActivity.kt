@@ -28,7 +28,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var b: ActivityMainBinding
 
     companion object {
-        // Adresa platformei (se poate schimba din câmpul „Server")
+        // Adresa platformei Street X Underground (server implicit).
         const val DEFAULT_SERVER = "https://street-x-undergound.catalincherciu90.workers.dev"
     }
 
@@ -146,7 +146,9 @@ class MainActivity : AppCompatActivity() {
         val url = Prefs.serverUrl(this).ifEmpty { DEFAULT_SERVER }.trimEnd('/')
         val user = b.etUser.text.toString().trim()
         val pass = b.etPass.text.toString()
+        b.tvLoginErr.text = ""
         if (user.isEmpty() || pass.isEmpty()) {
+            b.tvLoginErr.text = "Completează utilizator și parolă."
             toast("Completează utilizator și parolă."); return
         }
 
@@ -185,13 +187,16 @@ class MainActivity : AppCompatActivity() {
                         } else toast("Răspuns invalid de la server.")
                     } else {
                         val err = try { JSONObject(text).optString("error") } catch (e: Exception) { "" }
-                        toast(if (err.isNotEmpty()) err else "Autentificare eșuată ($code)")
+                        val msg = if (err.isNotEmpty()) err else "Autentificare eșuată ($code)"
+                        b.tvLoginErr.text = msg
+                        toast(msg)
                     }
                 }
             } catch (e: Exception) {
                 runOnUiThread {
                     b.btnLogin.isEnabled = true
                     b.btnLogin.text = "Conectează"
+                    b.tvLoginErr.text = "Eroare de rețea: ${e.message}"
                     toast("Eroare de rețea: ${e.message}")
                 }
             }
