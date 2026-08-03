@@ -9,7 +9,6 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Street X Underground — Trasee</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;800&family=Rajdhani:wght@500;600;700&display=swap" />
@@ -28,8 +27,10 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
   header .hbtn{background:var(--s3);border:1px solid var(--line2);color:var(--t2);border-radius:9px;width:36px;height:36px;display:grid;place-items:center;cursor:pointer}
   img[src$="brand/logo"]{filter:drop-shadow(0 0 5px rgba(34,224,138,.35))}
 
-  #map{flex:1 1 auto;position:relative;background:#0a1418}
+  #map{flex:1 1 auto;position:relative;background:#0a1418;min-height:240px}
   .leaflet-container{background:#0a1418}
+  /* look „Underground" pe tile-urile raster: uscat oliv, drumuri albe */
+  .leaflet-tile-pane{filter:brightness(1.28) contrast(1.8) saturate(.25) sepia(.18) hue-rotate(115deg)}
   .glowline{filter:drop-shadow(0 0 3px rgba(125,249,255,.9)) drop-shadow(0 0 7px rgba(34,224,138,.5))}
 
   /* stats live peste hartă */
@@ -155,8 +156,6 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
 <div class="toast" id="toast"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-<script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.0.22/leaflet-maplibre-gl.js"></script>
 <script>
 const API=location.origin;
 const params=new URLSearchParams(location.search);
@@ -184,24 +183,19 @@ function fmtKm(m){return ((m||0)/1000).toFixed(1);}
 function fmtDur(s){s=Math.round(s||0);var m=Math.floor(s/60),ss=s%60;return m+":"+(ss<10?"0":"")+ss;}
 function haversine(a,b,c,d){var R=6371000,p=Math.PI/180,dLa=(c-a)*p,dLo=(d-b)*p,x=Math.sin(dLa/2)**2+Math.cos(a*p)*Math.cos(c*p)*Math.sin(dLo/2)**2;return 2*R*Math.asin(Math.sqrt(x));}
 
-// ---- stil hartă „Underground" (vector) ----
-const MAP_STYLE={version:8,sources:{omt:{type:"vector",url:"https://tiles.openfreemap.org/planet"}},layers:[
-  {id:"bg",type:"background",paint:{"background-color":"#39422f"}},
-  {id:"landcover",type:"fill",source:"omt","source-layer":"landcover",paint:{"fill-color":"#3d4a30","fill-opacity":.55}},
-  {id:"landuse",type:"fill",source:"omt","source-layer":"landuse",paint:{"fill-color":"#39432e","fill-opacity":.4}},
-  {id:"water",type:"fill",source:"omt","source-layer":"water",paint:{"fill-color":"#123a57"}},
-  {id:"waterway",type:"line",source:"omt","source-layer":"waterway",paint:{"line-color":"#123a57","line-width":1.2}},
-  {id:"roads-glow",type:"line",source:"omt","source-layer":"transportation",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":"#bfeffe","line-blur":3,"line-opacity":.35,"line-width":["interpolate",["linear"],["zoom"],11,3,14,6,17,13,20,22]}},
-  {id:"roads",type:"line",source:"omt","source-layer":"transportation",layout:{"line-cap":"round","line-join":"round"},paint:{"line-color":"#eef4f0","line-width":["interpolate",["linear"],["zoom"],6,.4,11,1.4,14,3,17,7,20,16]}}
-]};
+// ---- hartă raster (fiabilă în WebView) cu look „Underground" din filtru CSS ----
 let map,recLine=null,viewLayer=null,meDot=null;
-function addBase(){try{if(typeof L.maplibreGL==="function"&&window.maplibregl){L.maplibreGL({style:MAP_STYLE,attribution:"© OpenMapTiles © OpenStreetMap"}).addTo(map);return;}}catch(e){}
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",{maxZoom:20,subdomains:"abcd"}).addTo(map);}
+function addBase(){
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",{maxZoom:20,subdomains:"abcd",attribution:"© OpenStreetMap © CARTO"}).addTo(map);
+}
 function initMap(){
   map=L.map("map",{zoomControl:false}).setView([45.9432,24.9668],7);
   addBase();
   L.control.zoom({position:"bottomright"}).addTo(map);
-  setTimeout(()=>map.invalidateSize(),300);
+  var fix=function(){ if(map) map.invalidateSize(); };
+  setTimeout(fix,200); setTimeout(fix,600); setTimeout(fix,1500);
+  window.addEventListener("resize",fix);
+  window.addEventListener("load",fix);
 }
 
 // ---- înregistrare ----
