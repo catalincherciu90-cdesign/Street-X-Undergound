@@ -6,13 +6,17 @@ export const DRIVER_HTML = /* html */ `<!doctype html>
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>DropLy Courier — Chat</title>
+<title>Street X Underground — Chat</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;800&family=Rajdhani:wght@500;600;700&display=swap" />
 <style>
   :root{
     --bg:#0a0f0d; --s1:#121a16; --s2:#18221d; --s3:#202b25;
     --line:#263229; --line2:#3a4d43;
     --t1:#f5f8f5; --t2:#b9ccc0; --t3:#7c9488;
     --acc:#22e08a; --info:#4d9fff; --danger:#ff5b60;
+    --cyan:#28e0ff; --pink:#ff2d95;
     --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
   }
   *{box-sizing:border-box}
@@ -23,7 +27,7 @@ export const DRIVER_HTML = /* html */ `<!doctype html>
     display:flex;align-items:center;gap:9px;flex:0 0 auto;
     padding:max(12px,env(safe-area-inset-top)) 16px 12px}
   .mark{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;flex:none;background:linear-gradient(160deg,#123320,#0c1a12);border:1px solid var(--line2);box-shadow:0 0 8px rgba(34,224,138,.2)}
-  header .wm{font-weight:600;font-size:15px;letter-spacing:.2px}
+  header .wm{font-family:"Orbitron",system-ui,sans-serif;font-weight:700;font-size:13px;letter-spacing:.08em}
   header .wm b{color:var(--acc)}
   .online{margin-left:auto;display:flex;align-items:center;gap:7px;font-size:12px;color:var(--t2)}
   .pdot{width:8px;height:8px;border-radius:50%;background:var(--acc);position:relative;flex:none}
@@ -33,8 +37,14 @@ export const DRIVER_HTML = /* html */ `<!doctype html>
   img[src$="brand/logo"]{filter:drop-shadow(0 0 5px rgba(34,224,138,.35));animation:logoBoot .9s steps(3,end) 1}
   @keyframes logoBoot{0%{opacity:.3}20%{opacity:1}30%{opacity:.5}45%{opacity:1}60%{opacity:.7}100%{opacity:1}}
 
-  .h1{font-size:20px;font-weight:700;padding:12px 16px 2px}
-  .sub{font-size:12.5px;color:var(--t3);padding:0 16px 8px}
+  .h1{font-family:"Orbitron",system-ui,sans-serif;font-size:16px;font-weight:700;letter-spacing:.05em;padding:12px 16px 2px;color:var(--cyan);text-shadow:0 0 12px rgba(40,224,255,.35)}
+  .sub{font-size:12.5px;color:var(--t3);padding:0 16px 8px;font-family:"Rajdhani",system-ui,sans-serif;letter-spacing:.03em}
+  /* scanlines subtile (atmosferă underground) */
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:9998;
+    background:repeating-linear-gradient(0deg,rgba(0,0,0,0) 0 2px,rgba(0,0,0,.07) 2px 3px);opacity:.5}
+  body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:9997;
+    background:radial-gradient(ellipse at 50% -8%,rgba(40,224,255,.06),transparent 55%),radial-gradient(ellipse at 100% 112%,rgba(255,45,149,.06),transparent 55%)}
+  @media (prefers-reduced-motion:reduce){body::before{display:none}}
 
   .chat{flex:1 1 auto;display:flex;flex-direction:column;min-height:0;padding:0 16px}
   .chatlist{flex:1;overflow:auto;display:flex;flex-direction:column;gap:8px;padding:8px 0}
@@ -58,8 +68,8 @@ export const DRIVER_HTML = /* html */ `<!doctype html>
 </head>
 <body>
 <header>
-  <span class="mark"><img src="/brand/logo" alt="DropLy" style="height:22px;width:auto;max-width:22px" /></span>
-  <span class="wm">Drop<b>Ly</b></span>
+  <span class="mark"><img src="/brand/logo" alt="SXU" style="height:22px;width:auto;max-width:22px" /></span>
+  <span class="wm">STREET&nbsp;X <b>UNDERGROUND</b></span>
   <span class="online"><span class="pdot" id="onlineDot"></span><span id="onlineTxt">Online</span></span>
   <button class="hbtn" onclick="load()" title="Reîmprospătează"><span data-ic="refresh"></span></button>
   <button class="hbtn" onclick="doLogout()" title="Deconectează-te"><span data-ic="logout"></span></button>
