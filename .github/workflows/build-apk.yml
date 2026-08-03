@@ -1,0 +1,66 @@
+name: Build APK
+
+# Compilează aplicația Android (debug) și o publică în site la /app.apk.
+# Nu are nevoie de niciun secret — folosește GITHUB_TOKEN ca să comită APK-ul.
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main", "claude/**" ]
+    paths:
+      - "android/**"
+      - ".github/workflows/build-apk.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Build debug APK
+        working-directory: android
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      - name: Copiază APK-ul în site (server/public/app.apk)
+        run: |
+          mkdir -p server/public
+          cp android/app/build/outputs/apk/debug/app-debug.apk server/public/app.apk
+          ls -la server/public
+
+      - name: Publică APK-ul și ca artifact (backup descărcabil)
+        uses: actions/upload-artifact@v4
+        with:
+          name: street-x-underground-apk
+          path: server/public/app.apk
+          if-no-files-found: error
+
+      - name: Comite APK-ul în repo (îl servește Cloudflare la /app.apk)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f server/public/app.apk
+          if git diff --cached --quiet; then
+            echo "APK neschimbat — nimic de comis."
+          else
+            git commit -m "chore: build APK debug [skip ci]"
+            git push
+          fi
