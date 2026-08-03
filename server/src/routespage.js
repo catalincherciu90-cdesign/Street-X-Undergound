@@ -206,6 +206,34 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
   #perfCount .go{font-size:96px;letter-spacing:.06em;animation:goflash .8s ease-out both;text-shadow:0 0 34px currentColor}
   @keyframes cnt{0%{opacity:0;transform:scale(2.3)}28%{opacity:1;transform:scale(1)}100%{opacity:.12;transform:scale(.7)}}
   @keyframes goflash{0%{opacity:0;transform:scale(.4)}45%{opacity:1;transform:scale(1.18)}100%{opacity:1;transform:scale(1)}}
+
+  /* Roll Race */
+  #racePanel{position:fixed;inset:0;z-index:3000;display:none;flex-direction:column;
+    background:radial-gradient(circle at 50% 0%,#1a120e,#060a08 70%);
+    padding:max(14px,env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom))}
+  #racePanel.on{display:flex}
+  .racebody{flex:1;overflow-y:auto;margin-top:6px}
+  .racestat{text-align:center;font-family:"Rajdhani",sans-serif;font-weight:700;font-size:16px;color:var(--t1);margin:6px 0 12px}
+  .racestat b{color:#ff8a3d} .racestat .racesub{display:block;font-size:12px;color:var(--t3);font-weight:600;margin-top:3px}
+  .racestat.go{color:var(--acc);font-family:"Orbitron",sans-serif;letter-spacing:.05em;font-size:18px}
+  .racehint{color:var(--t2);font-size:13px;text-align:center;margin:12px 4px}
+  .racelbl{display:block;font-size:12px;color:var(--t2);margin:8px 2px 4px}
+  .raceinp{width:100%;background:var(--s1);border:1px solid var(--line);color:var(--t1);border-radius:10px;padding:12px;font-size:18px;text-align:center;font-family:var(--mono)}
+  .racenote{font-size:11px;color:var(--t3);text-align:center;margin-top:10px;line-height:1.45}
+  .racelist{display:flex;flex-direction:column;gap:9px}
+  .racerow{background:rgba(24,20,16,.85);border:1px solid var(--line2);border-radius:12px;padding:10px 12px}
+  .racerow.me{border-color:#ff8a3d}
+  .racetop{display:flex;align-items:center;gap:8px}
+  .racepos{width:22px;height:22px;flex:0 0 22px;border-radius:50%;background:var(--s3);border:1px solid var(--line2);display:grid;place-items:center;font:700 12px/1 var(--mono);color:var(--t2)}
+  .racename{font-weight:700;flex:1;font-family:"Rajdhani",sans-serif}
+  .raceval{font-family:var(--mono);font-size:14px;color:#eafcff}
+  .raceval .ok{color:var(--acc);margin-left:4px}
+  .racebar{height:8px;background:var(--s1);border-radius:6px;margin-top:8px;overflow:hidden}
+  .racefill{height:100%;border-radius:6px;transition:width .3s}
+  #raceCount{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);z-index:30;display:none;
+    font-family:"Orbitron",sans-serif;font-weight:900;text-align:center;pointer-events:none}
+  #raceCount.show{display:block}
+  #raceCount .go{font-size:100px;letter-spacing:.06em;animation:goflash .8s ease-out both;text-shadow:0 0 34px currentColor}
   #navExit{position:absolute;left:12px;top:calc(12px + env(safe-area-inset-top));z-index:701;display:none;
     align-items:center;gap:6px;background:rgba(10,15,13,.9);border:1px solid var(--line2);color:var(--t1);
     border-radius:12px;padding:10px 13px;font-weight:600;font-family:"Rajdhani",system-ui,sans-serif;cursor:pointer}
@@ -313,6 +341,14 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
   </div>
   <div class="perfnote">Măsurare pe baza GPS-ului telefonului (~1 Hz) — valorile sunt orientative. Folosește doar pe drum privat/pistă, în siguranță. · <span onclick="resetPerfBest()" style="color:var(--pink);cursor:pointer;text-decoration:underline">Șterge recordurile</span></div>
   <div id="perfCount"></div>
+</div>
+
+<!-- Roll Race (cursă la sincronizare de viteză, în party) -->
+<div id="racePanel">
+  <div class="perfhead"><h2>ROLL RACE</h2><button class="px" onclick="closeRace()"><span data-ic="x" data-sz="20"></span></button></div>
+  <div class="perfspeed"><b id="raceSpd">0</b><span>km/h</span></div>
+  <div class="racebody" id="raceBody"></div>
+  <div id="raceCount"></div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1021,7 +1057,107 @@ function renderParty(){
     +'<div class="rmeta">Trimite codul prietenilor ca să intre în party.</div></div>'
     +'<div style="margin:8px 2px 4px;font-size:12px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em">Membri ('+mem.length+')</div>'
     +list
-    +'<button class="recbtn stop" style="height:46px;margin-top:10px" onclick="leaveParty()">Ieși din party</button>';
+    +'<button class="recbtn" style="height:48px;margin-top:12px;background:linear-gradient(180deg,#ff8a3d,#e56a1c);color:#160a02;border:none;font-weight:800" onclick="openRace()">🏁 Roll Race — cursă la sincron (1 km)</button>'
+    +'<button class="recbtn stop" style="height:44px;margin-top:8px" onclick="leaveParty()">Ieși din party</button>';
+}
+
+// ---- Roll Race (cursă la sincronizare de viteză, 1 km, în party) ----
+let raceOn=false, raceWatch=null, raceTimer=null, raceState=null;
+let raceLastPos=null, raceLastT=0, raceDist=0, raceStartedSeen=false, raceCurSpeed=0, raceGoFlashed=false;
+function openRace(){
+  var pp=document.getElementById("racePanel"); if(!pp) return;
+  raceOn=true; raceState=null; raceStartedSeen=false; raceDist=0; raceLastPos=null; raceLastT=0; raceCurSpeed=0; raceGoFlashed=false;
+  renderRace(); pp.classList.add("on");
+  if(navigator.geolocation){ raceWatch=navigator.geolocation.watchPosition(racePos,function(){ toast("Nu pot citi GPS-ul."); },{enableHighAccuracy:true,maximumAge:0,timeout:20000}); }
+  if(raceTimer) clearInterval(raceTimer); raceTimer=setInterval(raceTick,1000); raceTick();
+}
+function closeRace(){
+  raceOn=false;
+  if(raceWatch!=null&&navigator.geolocation){ navigator.geolocation.clearWatch(raceWatch); raceWatch=null; }
+  if(raceTimer){ clearInterval(raceTimer); raceTimer=null; }
+  var pp=document.getElementById("racePanel"); if(pp) pp.classList.remove("on");
+}
+function racePos(p){
+  var t=p.timestamp||Date.now();
+  var lat=p.coords.latitude,lng=p.coords.longitude,pos=[lat,lng],spd;
+  if(p.coords.speed!=null&&p.coords.speed>=0) spd=p.coords.speed*3.6;
+  else if(raceLastPos){ var dd=haversine(raceLastPos[0],raceLastPos[1],lat,lng); var dt=(t-raceLastT)/1000; spd=dt>0?dd/dt*3.6:0; } else spd=0;
+  raceCurSpeed=spd;
+  var sv=document.getElementById("raceSpd"); if(sv) sv.textContent=Math.round(spd);
+  if(raceState && raceState.status==="racing" && raceStartedSeen && raceLastPos){ raceDist += haversine(raceLastPos[0],raceLastPos[1],lat,lng); }
+  raceLastPos=pos; raceLastT=t;
+}
+function raceFlash(txt){
+  var c=document.getElementById("raceCount"); if(!c) return;
+  c.classList.add("show"); c.innerHTML='<div class="go" style="color:#22e08a">'+txt+'</div>';
+  setTimeout(function(){ c.classList.remove("show"); c.innerHTML=""; },1500);
+}
+async function raceTick(){
+  if(!raceOn) return;
+  try{
+    fetch(API+"/api/my/party/race/tick",{method:"POST",headers:Object.assign({"Content-Type":"application/json"},hdr()),body:JSON.stringify({speed:raceCurSpeed,dist:raceDist})});
+    var r=await fetch(API+"/api/my/party/race",{headers:hdr()}); var d=await r.json();
+    if(!d.in_race){ raceState=null; renderRace(); return; }
+    if(d.status==="racing" && (!raceState || raceState.status!=="racing")){
+      if(!raceStartedSeen){ raceStartedSeen=true; raceDist=0; }
+      if(!raceGoFlashed){ raceGoFlashed=true; raceFlash("GO!"); }
+    }
+    if(d.status!=="racing"){ raceGoFlashed=false; }
+    raceState=d; renderRace();
+  }catch(e){}
+}
+async function startRace(){
+  var inp=document.getElementById("raceSyncSpeed");
+  var sp=inp?parseInt(inp.value,10):((raceState&&raceState.sync_speed)?raceState.sync_speed:100);
+  if(!isFinite(sp)) sp=100;
+  raceStartedSeen=false; raceDist=0; raceGoFlashed=false;
+  try{
+    var r=await fetch(API+"/api/my/party/race/start",{method:"POST",headers:Object.assign({"Content-Type":"application/json"},hdr()),body:JSON.stringify({sync_speed:sp})});
+    var d=await r.json();
+    if(r.ok){ toast("Cursă pornită — aduceți viteza la "+(d.sync_speed||sp)+" km/h!"); raceTick(); }
+    else toast(d.error||"Eroare la pornirea cursei.");
+  }catch(e){ toast("Eroare de rețea."); }
+}
+async function stopRace(){
+  try{ await fetch(API+"/api/my/party/race/stop",{method:"POST",headers:hdr()}); }catch(e){}
+  raceState=null; raceStartedSeen=false; raceGoFlashed=false; renderRace(); raceTick();
+}
+function renderRace(){
+  var el=document.getElementById("raceBody"); if(!el) return;
+  var s=raceState;
+  if(!s){
+    el.innerHTML='<div class="racehint">Sincronizați-vă la o viteză, iar aplicația vă dă startul automat și măsoară o cursă de 1 km. Primul la 1 km câștigă.</div>'
+      +'<label class="racelbl">Viteză de sincronizare (km/h)</label>'
+      +'<input id="raceSyncSpeed" type="number" value="100" min="20" max="200" class="raceinp" />'
+      +'<button class="recbtn start" style="height:50px;margin-top:12px" onclick="startRace()">Pornește cursa</button>'
+      +'<div class="racenote">Trebuie să fiți cel puțin 2 în party. Startul e automat când toți ajungeți la viteza aleasă. Pe drum privat/pistă, în siguranță.</div>';
+    return;
+  }
+  var head="";
+  if(s.status==="lobby") head='<div class="racestat">Aduceți viteza la <b>'+s.sync_speed+' km/h</b><span class="racesub">Start automat când toți sunteți sincronizați (±'+s.tol+' km/h)</span></div>';
+  else if(s.status==="racing") head='<div class="racestat go">CURSĂ! primul la 1 km câștigă</div>';
+  else head='<div class="racestat">Rezultate · cursă 1 km</div>';
+  var members=(s.members||[]).slice();
+  if(s.status==="done") members.sort(function(a,b){ var fa=a.finish==null?Infinity:a.finish, fb=b.finish==null?Infinity:b.finish; return fa-fb; });
+  else if(s.status==="racing") members.sort(function(a,b){ return (b.dist||0)-(a.dist||0); });
+  var rows=members.map(function(m,i){
+    var pct=Math.max(0,Math.min(100,(m.dist||0)/(s.dist_target||1000)*100));
+    var right="";
+    if(s.status==="lobby") right=(m.speed!=null?Math.round(m.speed)+' km/h':(m.online?'—':'offline'))+(m.synced?' <span class="ok">✔</span>':'');
+    else if(s.status==="racing") right=(m.finish!=null?('🏁 '+fmtClock(m.finish/1000)):Math.round(m.dist||0)+' m');
+    else right=(m.finish!=null?fmtClock(m.finish/1000):'DNF');
+    var pos=(s.status!=="lobby")?('<span class="racepos">'+(i+1)+'</span>'):'';
+    return '<div class="racerow'+(m.me?" me":"")+'"><div class="racetop">'+pos
+      +'<span class="racename" style="color:'+m.color+'">'+esc(m.name||"?")+(m.me?" (tu)":"")+'</span>'
+      +'<span class="raceval">'+right+'</span></div>'
+      +((s.status!=="lobby")?('<div class="racebar"><div class="racefill" style="width:'+pct.toFixed(0)+'%;background:'+m.color+'"></div></div>'):"")
+      +'</div>';
+  }).join("");
+  var btns="";
+  if(s.status==="lobby") btns='<button class="recbtn stop" style="height:46px;margin-top:12px" onclick="stopRace()">Anulează</button>';
+  else if(s.status==="done") btns='<button class="recbtn start" style="height:46px;margin-top:12px" onclick="startRace()">Cursă nouă</button>';
+  else btns='<button class="recbtn stop" style="height:44px;margin-top:12px" onclick="stopRace()">Oprește cursa</button>';
+  el.innerHTML=head+'<div class="racelist">'+rows+'</div>'+btns;
 }
 
 // ---- Prieteni (listă, cod, party fără cod, poziții live, mesaje) ----

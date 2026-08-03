@@ -284,6 +284,13 @@ async function ensureSchema(env) {
   try { await env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_dev_username ON devices (username)").run(); } catch (e) {}
   try { await env.DB.prepare("ALTER TABLE devices ADD COLUMN friend_code TEXT").run(); } catch (e) {}
   try { await env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_dev_friendcode ON devices (friend_code)").run(); } catch (e) {}
+  // Roll Race (cursă în party, sincronizare la viteză + cronometrare 1 km)
+  try { await env.DB.prepare("ALTER TABLE parties ADD COLUMN race_status TEXT").run(); } catch (e) {}
+  try { await env.DB.prepare("ALTER TABLE parties ADD COLUMN race_speed INTEGER").run(); } catch (e) {}
+  try { await env.DB.prepare("ALTER TABLE parties ADD COLUMN race_started_at INTEGER").run(); } catch (e) {}
+  try { await env.DB.prepare("ALTER TABLE party_members ADD COLUMN cur_speed REAL").run(); } catch (e) {}
+  try { await env.DB.prepare("ALTER TABLE party_members ADD COLUMN race_dist REAL").run(); } catch (e) {}
+  try { await env.DB.prepare("ALTER TABLE party_members ADD COLUMN race_finish INTEGER").run(); } catch (e) {}
   schemaReady = true;
 }
 
@@ -648,6 +655,83 @@ export default {
           return json({
             in_party: true, code: party.code, name: party.name,
             route_id: party.route_id, members,
+          });
+        }
+
+        // --- Roll Race (sincronizare la viteză + cursă de 1 km în party) ---
+        const RACE_TOL = 4;          // toleranță ±km/h pentru sincronizare
+        const RACE_DIST = 1000;      // distanța cursei (m)
+        async function myParty() {
+          return await env.DB.prepare("SELECT * FROM parties WHERE id=(SELECT party_id FROM party_members WHERE device_id=?)").bind(dev.id).first();
+        }
+        // Pornește o cursă (lobby): setează viteza de sincronizare, resetează membrii
+        if (path === "/api/my/party/race/start" && request.method === "POST") {
+          const b = await request.json().catch(() => ({}));
+          let sp = Math.round(Number(b.sync_speed));
+          if (!Number.isFinite(sp)) sp = 100;
+          sp = Math.max(20, Math.min(200, sp));
+          const party = await myParty();
+          if (!party) return json({ error: "nu ești într-un party" }, 400);
+          await env.DB.prepare("UPDATE parties SET race_status='lobby', race_speed=?, race_started_at=NULL WHERE id=?").bind(sp, party.id).run();
+          await env.DB.prepare("UPDATE party_members SET cur_speed=NULL, race_dist=0, race_finish=NULL WHERE party_id=?").bind(party.id).run();
+          return json({ ok: true, sync_speed: sp });
+        }
+        // Oprește/anulează cursa
+        if (path === "/api/my/party/race/stop" && request.method === "POST") {
+          const party = await myParty();
+          if (party) await env.DB.prepare("UPDATE parties SET race_status=NULL, race_started_at=NULL WHERE id=?").bind(party.id).run();
+          return json({ ok: true });
+        }
+        // Raportează viteza (+distanța dacă e cursă) și avansează starea
+        if (path === "/api/my/party/race/tick" && request.method === "POST") {
+          const b = await request.json().catch(() => ({}));
+          const party = await myParty();
+          if (!party || !party.race_status) return json({ in_race: false });
+          const now = Date.now();
+          const spd = Number(b.speed);
+          await env.DB.prepare("UPDATE party_members SET cur_speed=?, last_at=? WHERE device_id=?")
+            .bind(Number.isFinite(spd) ? spd : null, now, dev.id).run();
+          if (party.race_status === "racing") {
+            const dist = Number(b.dist);
+            if (Number.isFinite(dist)) {
+              const meRow = await env.DB.prepare("SELECT race_finish FROM party_members WHERE device_id=?").bind(dev.id).first();
+              let fin = meRow && meRow.race_finish ? meRow.race_finish : null;
+              if (!fin && dist >= RACE_DIST && party.race_started_at) fin = now - party.race_started_at;
+              await env.DB.prepare("UPDATE party_members SET race_dist=?, race_finish=? WHERE device_id=?").bind(dist, fin, dev.id).run();
+            }
+            const rows = await env.DB.prepare("SELECT last_at, race_finish FROM party_members WHERE party_id=?").bind(party.id).all();
+            const act = (rows.results || []).filter((m) => m.last_at && (now - m.last_at) < 15000);
+            const allDone = act.length >= 1 && act.every((m) => m.race_finish != null);
+            const timeout = party.race_started_at && (now - party.race_started_at) > 300000;
+            if (allDone || timeout) await env.DB.prepare("UPDATE parties SET race_status='done' WHERE id=?").bind(party.id).run();
+          } else if (party.race_status === "lobby") {
+            const rows = await env.DB.prepare("SELECT cur_speed, last_at FROM party_members WHERE party_id=?").bind(party.id).all();
+            const act = (rows.results || []).filter((m) => m.last_at && (now - m.last_at) < 8000);
+            const synced = act.length >= 2 && act.every((m) => m.cur_speed != null && Math.abs(m.cur_speed - party.race_speed) <= RACE_TOL);
+            if (synced) {
+              await env.DB.prepare("UPDATE parties SET race_status='racing', race_started_at=? WHERE id=? AND race_status='lobby'").bind(now, party.id).run();
+              await env.DB.prepare("UPDATE party_members SET race_dist=0, race_finish=NULL WHERE party_id=?").bind(party.id).run();
+            }
+          }
+          return json({ ok: true });
+        }
+        // Starea cursei pentru afișare
+        if (path === "/api/my/party/race" && request.method === "GET") {
+          const party = await myParty();
+          if (!party || !party.race_status) return json({ in_race: false });
+          const now = Date.now();
+          const rows = await env.DB.prepare(
+            "SELECT device_id, name, color, cur_speed, race_dist, race_finish, last_at FROM party_members WHERE party_id=? ORDER BY id"
+          ).bind(party.id).all();
+          const members = (rows.results || []).map((m) => ({
+            name: m.name, color: m.color, me: m.device_id === dev.id,
+            speed: m.cur_speed, dist: m.race_dist || 0, finish: m.race_finish,
+            online: !!(m.last_at && (now - m.last_at) < 8000),
+            synced: !!(m.cur_speed != null && Math.abs(m.cur_speed - party.race_speed) <= RACE_TOL && m.last_at && (now - m.last_at) < 8000),
+          }));
+          return json({
+            in_race: true, status: party.race_status, sync_speed: party.race_speed,
+            started_at: party.race_started_at, dist_target: RACE_DIST, tol: RACE_TOL, members,
           });
         }
 
