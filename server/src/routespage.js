@@ -34,6 +34,10 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
     background:rgba(18,26,22,.94);border:1px solid var(--line2);color:var(--acc);font-size:22px;
     display:grid;place-items:center;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5)}
   #locBtn:active{transform:scale(.94)}
+  #styleBtn{position:absolute;right:12px;bottom:70px;z-index:600;width:48px;height:48px;border-radius:50%;
+    background:rgba(18,26,22,.94);border:1px solid var(--line2);color:var(--acc);font-size:20px;
+    display:grid;place-items:center;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5)}
+  #styleBtn:active{transform:scale(.94)}
   .flagmk{background:none!important;border:none!important}
   .flagmk .fe{font-size:24px;line-height:1;filter:drop-shadow(0 1px 2px #000);text-align:center}
   .flagmk .fl{font:700 9px/1 "Rajdhani",system-ui,sans-serif;letter-spacing:.06em;color:#08130d;padding:2px 6px;border-radius:6px;margin-top:2px;text-align:center;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.5)}
@@ -146,6 +150,7 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
     <div class="navinfo"><b id="navRemain">—</b> <span id="navNext"></span></div>
   </div>
   <button id="navExit" onclick="exitNav()"><span data-ic="x"></span> Ieși</button>
+  <button id="styleBtn" onclick="cycleStyle()" title="Stil hartă">🗺️</button>
   <button id="locBtn" onclick="locateMe()" title="Unde sunt">📍</button>
 </div>
 
@@ -223,6 +228,12 @@ function haversine(a,b,c,d){var R=6371000,p=Math.PI/180,dLa=(c-a)*p,dLo=(d-b)*p,
 
 // ---- hartă raster (fiabilă în WebView) cu look „Underground" din filtru CSS ----
 let map,recLine=null,viewLayer=null,meDot=null;
+let baseLayer=null, mapStyle=(localStorage.getItem("sxu_mapstyle")||"dark");
+const MAP_STYLES=[
+  {id:"dark",   name:"Underground", icon:"🌃"},
+  {id:"sat",    name:"Satelit",     icon:"🛰️"},
+  {id:"streets",name:"Stradal",     icon:"🗺️"}
+];
 function mapMsg(msg,color){
   var m=document.getElementById("map"); if(!m) return;
   var d=document.getElementById("mapMsg");
@@ -239,19 +250,34 @@ function dbg(){
   var sz=el?(el.clientWidth+"x"+el.clientHeight):"?";
   d.textContent="L:"+(typeof L!=="undefined"?"ok":"LIPSĂ")+" map:"+(map?"ok":"nu")+" "+sz+" tiles:"+tLoad+"/"+tErr;
 }
+function styleDef(id){ for(var i=0;i<MAP_STYLES.length;i++){ if(MAP_STYLES[i].id===id) return MAP_STYLES[i]; } return MAP_STYLES[0]; }
 function addBase(){
-  var layer=L.tileLayer("/tiles/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap © CARTO"});
+  if(!map) return;
+  if(baseLayer){ try{ map.removeLayer(baseLayer); }catch(e){} baseLayer=null; }
+  tLoad=0; tErr=0;
+  var layer=L.tileLayer("/tiles/"+mapStyle+"/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap © CARTO/Esri"});
   layer.on("tileload",function(){ tLoad++; if(tLoad===1) clearMapMsg(); dbg(); });
   layer.on("tileerror",function(){ tErr++; if(tLoad===0) mapMsg("Dalele nu se încarcă (/tiles). tErr="+tErr,"#ff5b60"); dbg(); });
   layer.addTo(map);
+  baseLayer=layer;
   mapMsg("Se încarcă harta…","#b9ccc0");
   setTimeout(function(){ if(tLoad===0) mapMsg("Harta nu s-a încărcat (tiles:"+tLoad+"/"+tErr+").","#ff5b60"); },6000);
+}
+function cycleStyle(){
+  var idx=0; for(var i=0;i<MAP_STYLES.length;i++){ if(MAP_STYLES[i].id===mapStyle){ idx=i; break; } }
+  var next=MAP_STYLES[(idx+1)%MAP_STYLES.length];
+  mapStyle=next.id;
+  try{ localStorage.setItem("sxu_mapstyle",mapStyle); }catch(e){}
+  var b=document.getElementById("styleBtn"); if(b) b.textContent=next.icon;
+  addBase();
+  toast(next.icon+" "+next.name);
 }
 function initMap(){
   dbg();
   if(typeof L==="undefined"){ mapMsg("Nu s-a încărcat motorul de hartă (Leaflet).","#ff5b60"); return; }
   try{
     map=L.map("map",{zoomControl:false}).setView([45.9432,24.9668],7);
+    var sb=document.getElementById("styleBtn"); if(sb) sb.textContent=styleDef(mapStyle).icon;
     addBase();
     L.control.zoom({position:"bottomleft"}).addTo(map);
     var fix=function(){ if(map) map.invalidateSize(); dbg(); };

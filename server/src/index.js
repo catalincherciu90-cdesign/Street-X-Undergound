@@ -288,10 +288,17 @@ export default {
 
       // Proxy pentru dalele hărții — WebView-ul nu mai depinde de servere externe
       // (unele rețele/telefoane blochează CDN-urile de hartă). Totul via origin-ul nostru.
-      const tm = path.match(/^\/tiles\/(\d+)\/(\d+)\/(\d+)\.png$/);
+      const tm = path.match(/^\/tiles\/(?:([a-z]+)\/)?(\d+)\/(\d+)\/(\d+)\.png$/);
       if (tm && request.method === "GET") {
-        const z = tm[1], x = tm[2], y = tm[3];
-        const upstream = "https://a.basemaps.cartocdn.com/dark_all/" + z + "/" + x + "/" + y + ".png";
+        const style = tm[1] || "dark";
+        const z = tm[2], x = tm[3], y = tm[4];
+        let upstream;
+        if (style === "sat")
+          upstream = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/" + z + "/" + y + "/" + x;
+        else if (style === "streets")
+          upstream = "https://a.basemaps.cartocdn.com/rastertiles/voyager/" + z + "/" + x + "/" + y + ".png";
+        else
+          upstream = "https://a.basemaps.cartocdn.com/dark_all/" + z + "/" + x + "/" + y + ".png";
         try {
           const resp = await fetch(upstream, {
             headers: { "User-Agent": "StreetXUnderground/1.0 (+https://street-x-undergound.workers.dev)" },
