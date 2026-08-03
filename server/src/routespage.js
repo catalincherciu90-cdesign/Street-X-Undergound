@@ -1259,12 +1259,27 @@ function closePerf(){
   var pp=document.getElementById("perfPanel"); if(pp) pp.classList.remove("on");
 }
 
+// ---- ține ecranul aprins (Screen Wake Lock) cât timp ești pe pagina de trasee ----
+let wakeLock=null;
+async function requestWake(){
+  try{
+    if("wakeLock" in navigator && document.visibilityState==="visible"){
+      wakeLock=await navigator.wakeLock.request("screen");
+      wakeLock.addEventListener("release",function(){ wakeLock=null; });
+    }
+  }catch(e){ wakeLock=null; }
+}
+document.addEventListener("visibilitychange",function(){
+  if(document.visibilityState==="visible" && !wakeLock) requestWake();
+});
+
 if(!key){ document.getElementById("recHint").textContent="Lipsește codul dispozitivului — deschide din aplicație."; }
 initMap();
 startLocate();
 loadList();
 loadParty();
 loadMe();
+requestWake();
 </script>
 </body>
 </html>`;

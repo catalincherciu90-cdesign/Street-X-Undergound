@@ -46,6 +46,9 @@ class CoursesActivity : AppCompatActivity() {
 
         web = WebView(this)
         setContentView(web)
+        // Ține ecranul aprins cât timp pagina (trasee/navigație/chat) e deschisă.
+        web.keepScreenOn = true
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         web.settings.javaScriptEnabled = true
         web.settings.domStorageEnabled = true
         web.settings.allowFileAccess = true
