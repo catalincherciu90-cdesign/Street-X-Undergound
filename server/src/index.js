@@ -22,9 +22,6 @@ import { DASHBOARD_HTML } from "./dashboard.js";
 import { PAIR_HTML } from "./pairpage.js";
 import { DRIVER_HTML } from "./driverpage.js";
 
-// Statusuri valide pentru curse
-const STATUSES = ["nou", "acceptat", "in_curs", "finalizat", "anulat"];
-
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET,POST,DELETE,OPTIONS",
@@ -169,24 +166,6 @@ async function ensureSchema(env) {
       "CREATE INDEX IF NOT EXISTS idx_dev_apikey ON devices (api_key)"
     ),
     env.DB.prepare(
-      "CREATE TABLE IF NOT EXISTS courses (" +
-        "id INTEGER PRIMARY KEY AUTOINCREMENT, number INTEGER NOT NULL, " +
-        "device_id INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'nou', " +
-        "contact_name TEXT, contact_phone TEXT, pickup TEXT, dropoff TEXT, details TEXT, " +
-        "created_at INTEGER NOT NULL, updated_at INTEGER)"
-    ),
-    env.DB.prepare(
-      "CREATE INDEX IF NOT EXISTS idx_courses_device ON courses (device_id, status)"
-    ),
-    env.DB.prepare(
-      "CREATE TABLE IF NOT EXISTS course_docs (" +
-        "id TEXT PRIMARY KEY, course_id INTEGER NOT NULL, device_id INTEGER NOT NULL, " +
-        "filename TEXT, content_type TEXT, size INTEGER, uploaded_at INTEGER NOT NULL)"
-    ),
-    env.DB.prepare(
-      "CREATE INDEX IF NOT EXISTS idx_docs_course ON course_docs (course_id)"
-    ),
-    env.DB.prepare(
       "CREATE TABLE IF NOT EXISTS messages (" +
         "id INTEGER PRIMARY KEY AUTOINCREMENT, device_id INTEGER NOT NULL, " +
         "text TEXT NOT NULL, created_at INTEGER NOT NULL)"
@@ -194,16 +173,12 @@ async function ensureSchema(env) {
     env.DB.prepare(
       "CREATE INDEX IF NOT EXISTS idx_msg_device ON messages (device_id, created_at)"
     ),
-    env.DB.prepare(
-      "CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)"
-    ),
   ]);
   // Migrare: adaugă user/parolă la tabelul devices dacă lipsesc (ignoră dacă există deja)
   try { await env.DB.prepare("ALTER TABLE devices ADD COLUMN username TEXT").run(); } catch (e) {}
   try { await env.DB.prepare("ALTER TABLE devices ADD COLUMN password_hash TEXT").run(); } catch (e) {}
   try { await env.DB.prepare("ALTER TABLE devices ADD COLUMN has_avatar INTEGER DEFAULT 0").run(); } catch (e) {}
   try { await env.DB.prepare("ALTER TABLE messages ADD COLUMN sender TEXT DEFAULT 'admin'").run(); } catch (e) {}
-  try { await env.DB.prepare("ALTER TABLE courses ADD COLUMN due_at INTEGER").run(); } catch (e) {}
   try { await env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_dev_username ON devices (username)").run(); } catch (e) {}
   schemaReady = true;
 }
@@ -342,23 +317,10 @@ export default {
         return json({ ok: true });
       }
 
-      // --- Curse pentru curier (auth cu device key) ---
+      // --- Mesaje pentru curier (auth cu device key) ---
       if (path.startsWith("/api/my/")) {
         const dev = await requireDevice(request, env);
         if (!dev) return json({ error: "device key invalid" }, 401);
-
-        // GET /api/my/courses — cursele curierului
-        if (path === "/api/my/courses" && request.method === "GET") {
-          const rows = await env.DB.prepare(
-            "SELECT c.id, c.number, c.status, c.contact_name, c.contact_phone, c.pickup, c.dropoff, c.details, c.created_at, c.updated_at, c.due_at, " +
-              "(SELECT COUNT(*) FROM course_docs cd WHERE cd.course_id=c.id) AS docs " +
-              "FROM courses c WHERE c.device_id=? AND c.status!='anulat' " +
-              "ORDER BY (c.status='finalizat') ASC, c.number DESC"
-          )
-            .bind(dev.id)
-            .all();
-          return json({ device: dev.name, courses: rows.results || [] });
-        }
 
         // /api/my/messages — vezi (GET) sau răspunde (POST)
         if (path === "/api/my/messages") {
@@ -368,7 +330,7 @@ export default {
             )
               .bind(dev.id)
               .all();
-            return json({ messages: rows.results || [] });
+            return json({ messages: rows.results || [], device: dev.name });
           }
           if (request.method === "POST") {
             const b = await request.json().catch(() => ({}));
@@ -383,45 +345,6 @@ export default {
           }
         }
 
-        const ms = path.match(/^\/api\/my\/courses\/(\d+)\/(status|docs)$/);
-        if (ms) {
-          const cid = Number(ms[1]);
-          const kind = ms[2];
-          const course = await env.DB.prepare(
-            "SELECT id FROM courses WHERE id=? AND device_id=?"
-          )
-            .bind(cid, dev.id)
-            .first();
-          if (!course) return json({ error: "cursă inexistentă" }, 404);
-
-          if (kind === "status" && request.method === "POST") {
-            const b = await request.json().catch(() => ({}));
-            const st = String(b.status || "");
-            if (!STATUSES.includes(st)) return json({ error: "status invalid" }, 400);
-            await env.DB.prepare("UPDATE courses SET status=?, updated_at=? WHERE id=?")
-              .bind(st, Date.now(), cid)
-              .run();
-            return json({ ok: true });
-          }
-
-          if (kind === "docs" && request.method === "POST") {
-            if (!env.DOCS) return json({ error: "stocarea documentelor nu e configurată" }, 500);
-            const ct = request.headers.get("Content-Type") || "application/octet-stream";
-            const filename = url.searchParams.get("filename") || "document-" + Date.now();
-            const buf = await request.arrayBuffer();
-            if (buf.byteLength === 0) return json({ error: "fișier gol" }, 400);
-            if (buf.byteLength > 20 * 1024 * 1024)
-              return json({ error: "fișier prea mare (max 20MB)" }, 413);
-            const docId = randomKey(16);
-            await env.DOCS.put(docId, buf);
-            await env.DB.prepare(
-              "INSERT INTO course_docs (id, course_id, device_id, filename, content_type, size, uploaded_at) VALUES (?,?,?,?,?,?,?)"
-            )
-              .bind(docId, cid, dev.id, filename, ct, buf.byteLength, Date.now())
-              .run();
-            return json({ ok: true, id: docId });
-          }
-        }
         return json({ error: "rută necunoscută" }, 404);
       }
 
@@ -432,14 +355,11 @@ export default {
 
         // GET /api/devices
         if (path === "/api/devices" && request.method === "GET") {
-          const nowMs = Date.now();
           const rows = await env.DB.prepare(
             "SELECT id, name, group_name, api_key, username, has_avatar, created_at, last_seen, last_lat, last_lng, last_accuracy, last_speed, last_battery, " +
-            "(SELECT sender FROM messages WHERE messages.device_id=devices.id ORDER BY created_at DESC LIMIT 1) AS last_msg_from, " +
-            "(SELECT COUNT(*) FROM courses WHERE courses.device_id=devices.id AND status IN ('nou','acceptat','in_curs')) AS active_courses, " +
-            "(SELECT COUNT(*) FROM courses WHERE courses.device_id=devices.id AND status IN ('nou','acceptat','in_curs') AND due_at IS NOT NULL AND due_at < ?) AS late_courses " +
+            "(SELECT sender FROM messages WHERE messages.device_id=devices.id ORDER BY created_at DESC LIMIT 1) AS last_msg_from " +
             "FROM devices ORDER BY group_name, name"
-          ).bind(nowMs).all();
+          ).all();
           return json({ devices: rows.results || [] });
         }
 
@@ -495,18 +415,13 @@ export default {
           return json({ ok: true, username });
         }
 
-        // GET /api/devices/:id/stats?from=&to= — comenzi active + km în interval
+        // GET /api/devices/:id/stats?from=&to= — km parcurși în interval
         const stm = path.match(/^\/api\/devices\/(\d+)\/stats$/);
         if (stm && request.method === "GET") {
           const id = Number(stm[1]);
           const now = Date.now();
           const from = Number(url.searchParams.get("from")) || now - 86400000;
           const to = Number(url.searchParams.get("to")) || now;
-          const ac = await env.DB.prepare(
-            "SELECT COUNT(*) AS n FROM courses WHERE device_id=? AND status IN ('nou','acceptat','in_curs')"
-          )
-            .bind(id)
-            .first();
           const pts = await env.DB.prepare(
             "SELECT lat, lng FROM locations WHERE device_id=? AND recorded_at BETWEEN ? AND ? ORDER BY recorded_at ASC LIMIT 20000"
           )
@@ -518,7 +433,7 @@ export default {
             const seg = havKm(arr[i - 1].lat, arr[i - 1].lng, arr[i].lat, arr[i].lng);
             if (seg < 5) km += seg;
           }
-          return json({ active_courses: ac.n || 0, km: Math.round(km * 10) / 10 });
+          return json({ km: Math.round(km * 10) / 10 });
         }
 
         // POST /api/devices/:id/avatar — încarcă poza curierului
@@ -611,192 +526,6 @@ export default {
           if (env.DOCS) await env.DOCS.delete("brand:logo");
           return json({ ok: true });
         }
-      }
-
-      // --- Setare depozit (admin) ---
-      if (path === "/api/settings/depot") {
-        const admin = await requireAdmin(request, env);
-        if (!admin) return json({ error: "neautorizat" }, 401);
-        if (request.method === "GET") {
-          const row = await env.DB.prepare("SELECT value FROM settings WHERE key='depot'").first();
-          return json({ depot: row && row.value ? JSON.parse(row.value) : null });
-        }
-        if (request.method === "POST") {
-          const b = await request.json().catch(() => ({}));
-          const address = (b.address || "").trim();
-          const lat = Number(b.lat), lng = Number(b.lng);
-          if (!address || !isFinite(lat) || !isFinite(lng))
-            return json({ error: "date depozit invalide" }, 400);
-          const val = JSON.stringify({ address, lat, lng });
-          await env.DB.prepare(
-            "INSERT INTO settings (key,value) VALUES ('depot',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value"
-          ).bind(val).run();
-          return json({ ok: true });
-        }
-      }
-
-      // --- Raport curse & km per curier (admin) ---
-      if (path === "/api/report" && request.method === "GET") {
-        const admin = await requireAdmin(request, env);
-        if (!admin) return json({ error: "neautorizat" }, 401);
-        const now = Date.now();
-        const from = Number(url.searchParams.get("from")) || now - 7 * 86400000;
-        const to = Number(url.searchParams.get("to")) || now;
-        const devs = await env.DB.prepare(
-          "SELECT id, name, group_name FROM devices ORDER BY group_name, name"
-        ).all();
-        const rows = [];
-        for (const d of devs.results || []) {
-          const cc = await env.DB.prepare(
-            "SELECT COUNT(*) AS total, SUM(CASE WHEN status='finalizat' THEN 1 ELSE 0 END) AS done FROM courses WHERE device_id=? AND created_at BETWEEN ? AND ?"
-          )
-            .bind(d.id, from, to)
-            .first();
-          const pts = await env.DB.prepare(
-            "SELECT lat, lng FROM locations WHERE device_id=? AND recorded_at BETWEEN ? AND ? ORDER BY recorded_at ASC LIMIT 20000"
-          )
-            .bind(d.id, from, to)
-            .all();
-          const arr = pts.results || [];
-          let km = 0;
-          for (let i = 1; i < arr.length; i++) {
-            const seg = havKm(arr[i - 1].lat, arr[i - 1].lng, arr[i].lat, arr[i].lng);
-            if (seg < 5) km += seg; // ignoră salturi GPS (>5km între 2 puncte)
-          }
-          rows.push({
-            id: d.id,
-            name: d.name,
-            group: d.group_name,
-            courses_total: cc.total || 0,
-            courses_done: cc.done || 0,
-            km: Math.round(km * 10) / 10,
-          });
-        }
-        return json({ from, to, rows });
-      }
-
-      // --- Curse & documente (admin) ---
-      if (path.startsWith("/api/courses") || path.startsWith("/api/docs")) {
-        const admin = await requireAdmin(request, env);
-        if (!admin) return json({ error: "neautorizat" }, 401);
-
-        // POST /api/courses — creează cursă
-        if (path === "/api/courses" && request.method === "POST") {
-          const b = await request.json().catch(() => ({}));
-          const deviceId = Number(b.device_id);
-          if (!deviceId) return json({ error: "device_id obligatoriu" }, 400);
-          const dev = await env.DB.prepare("SELECT id FROM devices WHERE id=?")
-            .bind(deviceId)
-            .first();
-          if (!dev) return json({ error: "curier inexistent" }, 404);
-          const nr = await env.DB.prepare(
-            "SELECT COALESCE(MAX(number),0)+1 AS n FROM courses"
-          ).first();
-          const number = nr.n;
-          const now = Date.now();
-          let dueAt = Number(b.due_at);
-          if (!Number.isFinite(dueAt) || dueAt <= 0) dueAt = null;
-          const res = await env.DB.prepare(
-            "INSERT INTO courses (number, device_id, status, contact_name, contact_phone, pickup, dropoff, details, created_at, updated_at, due_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)"
-          )
-            .bind(
-              number,
-              deviceId,
-              "nou",
-              (b.contact_name || "").trim() || null,
-              (b.contact_phone || "").trim() || null,
-              (b.pickup || "").trim() || null,
-              (b.dropoff || "").trim() || null,
-              (b.details || "").trim() || null,
-              now,
-              now,
-              dueAt
-            )
-            .run();
-          return json({ id: res.meta.last_row_id, number });
-        }
-
-        // GET /api/courses?device_id=
-        if (path === "/api/courses" && request.method === "GET") {
-          const dId = url.searchParams.get("device_id");
-          let sql =
-            "SELECT c.id, c.number, c.device_id, d.name AS device_name, c.status, c.contact_name, c.contact_phone, c.pickup, c.dropoff, c.details, c.created_at, c.updated_at, c.due_at, " +
-            "(SELECT COUNT(*) FROM course_docs cd WHERE cd.course_id=c.id) AS docs " +
-            "FROM courses c JOIN devices d ON d.id=c.device_id";
-          const binds = [];
-          if (dId) {
-            sql += " WHERE c.device_id=?";
-            binds.push(Number(dId));
-          }
-          sql += " ORDER BY c.number DESC LIMIT 500";
-          const rows = await env.DB.prepare(sql).bind(...binds).all();
-          return json({ courses: rows.results || [] });
-        }
-
-        // /api/courses/:id  și  /api/courses/:id/docs
-        const cm = path.match(/^\/api\/courses\/(\d+)(\/docs)?$/);
-        if (cm) {
-          const cid = Number(cm[1]);
-          const isDocs = !!cm[2];
-
-          if (isDocs && request.method === "GET") {
-            const rows = await env.DB.prepare(
-              "SELECT id, filename, content_type, size, uploaded_at FROM course_docs WHERE course_id=? ORDER BY uploaded_at ASC"
-            )
-              .bind(cid)
-              .all();
-            return json({ docs: rows.results || [] });
-          }
-
-          if (!isDocs && request.method === "POST") {
-            const b = await request.json().catch(() => ({}));
-            const st = String(b.status || "");
-            if (!STATUSES.includes(st)) return json({ error: "status invalid" }, 400);
-            await env.DB.prepare("UPDATE courses SET status=?, updated_at=? WHERE id=?")
-              .bind(st, Date.now(), cid)
-              .run();
-            return json({ ok: true });
-          }
-
-          if (!isDocs && request.method === "DELETE") {
-            const docs = await env.DB.prepare(
-              "SELECT id FROM course_docs WHERE course_id=?"
-            )
-              .bind(cid)
-              .all();
-            if (env.DOCS) {
-              for (const d of docs.results || []) await env.DOCS.delete(d.id);
-            }
-            await env.DB.batch([
-              env.DB.prepare("DELETE FROM course_docs WHERE course_id=?").bind(cid),
-              env.DB.prepare("DELETE FROM courses WHERE id=?").bind(cid),
-            ]);
-            return json({ ok: true });
-          }
-        }
-
-        // GET /api/docs/:id — descarcă documentul
-        const dm = path.match(/^\/api\/docs\/([a-f0-9]+)$/);
-        if (dm && request.method === "GET") {
-          if (!env.DOCS) return json({ error: "stocare indisponibilă" }, 500);
-          const meta = await env.DB.prepare(
-            "SELECT filename, content_type FROM course_docs WHERE id=?"
-          )
-            .bind(dm[1])
-            .first();
-          const obj = await env.DOCS.get(dm[1], { type: "arrayBuffer" });
-          if (!obj) return json({ error: "document inexistent" }, 404);
-          return new Response(obj, {
-            headers: {
-              "Content-Type": (meta && meta.content_type) || "application/octet-stream",
-              "Content-Disposition":
-                'inline; filename="' + ((meta && meta.filename) || dm[1]) + '"',
-              ...CORS,
-            },
-          });
-        }
-
-        return json({ error: "rută necunoscută" }, 404);
       }
 
       return json({ error: "not found" }, 404);

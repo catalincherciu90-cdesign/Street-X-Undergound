@@ -141,17 +141,19 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
   .mkav{width:50px;height:50px;min-width:50px;aspect-ratio:1/1;border-radius:50%;border:3px solid var(--gold);background:#0e1620;color:#fff;font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 12px rgba(0,0,0,.6);letter-spacing:.5px;overflow:hidden}
   img.mkav{object-fit:cover;display:block;padding:0}
   .mkname{margin-top:5px;padding:3px 10px;border-radius:8px;color:#12202b;font-size:11px;font-weight:700;white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis;box-shadow:0 2px 6px rgba(0,0,0,.5)}
-  /* drumuri verzi neon (colorează dalele hărții spre verde) */
-  .leaflet-tile-pane{filter:brightness(.82) sepia(1) hue-rotate(80deg) saturate(6) contrast(1.06)}
+  /* Temă „Underground": uscat oliv-teal întunecat, drumuri palide care ies în evidență */
+  .leaflet-tile-pane{filter:brightness(.9) contrast(1.08) saturate(.5) sepia(.45) hue-rotate(120deg)}
+  /* rute/trasee cu efect neon (glow) ca pe harta din joc */
+  .glowline{filter:drop-shadow(0 0 3px rgba(125,249,255,.9)) drop-shadow(0 0 7px rgba(34,224,138,.5))}
   /* dark leaflet controls */
   .leaflet-bar a{background:var(--s2);color:var(--txt);border-color:var(--line)}
   .leaflet-bar a:hover{background:var(--s3);color:var(--gold)}
   .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--s3);color:var(--txt);border:1px solid var(--line2)}
-  .leaflet-container{background:#0b1210}
-  /* vignette subtilă pe marginile hărții */
+  .leaflet-container{background:#0a1418}
+  /* vignette subtilă pe marginile hărții (apă albastru-adânc spre margini) */
   #map::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:250;
     box-shadow:inset 0 0 0 1px rgba(34,224,138,.10);
-    background:radial-gradient(ellipse at center, transparent 60%, rgba(8,12,10,.55) 100%)}
+    background:radial-gradient(ellipse at center, transparent 55%, rgba(9,20,30,.6) 100%)}
   #map{position:relative}
   /* scrollbar */
   ::-webkit-scrollbar{width:8px}
@@ -220,8 +222,6 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
     <div class="tb-actions">
       <button class="primary" onclick="openAdd()"><span data-ic="plus"></span> Dispozitiv</button>
       <button onclick="refresh()" title="Reîmprospătează"><span data-ic="refresh"></span></button>
-      <button class="opt" onclick="openReport()" title="Raport curieri"><span data-ic="chart"></span></button>
-      <button class="opt" onclick="openDepot()" title="Depozit + distanțe"><span data-ic="depot"></span></button>
       <button class="opt" onclick="openLogo()" title="Logo"><span data-ic="image"></span></button>
       <a class="opt" href="/app.apk" download="gps-tracker.apk" title="Descarcă aplicația Android"><button><span data-ic="download"></span></button></a>
       <button class="opt" onclick="logout()" title="Ieșire"><span data-ic="logout"></span></button>
@@ -229,8 +229,6 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
   </div>
   <div id="side">
     <div class="sidetools">
-      <button onclick="openReport()"><span data-ic="chart"></span> Raport</button>
-      <button onclick="openDepot()"><span data-ic="depot"></span> Depozit</button>
       <button onclick="openLogo()"><span data-ic="image"></span> Logo</button>
       <a href="/app.apk" download="gps-tracker.apk"><button><span data-ic="download"></span> App</button></a>
       <button onclick="logout()" style="margin-left:auto"><span data-ic="logout"></span> Ieșire</button>
@@ -317,66 +315,9 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
       <div id="pfAv"></div>
       <div><h3 id="pfName" style="margin:0"></h3><div id="pfStatus" style="font-size:12px;color:var(--mut)"></div></div>
     </div>
-    <div class="citem"><span style="color:var(--mut)">Comenzi active</span><div style="font-size:22px;font-weight:700;color:var(--gold)" id="pfOrders">…</div></div>
     <div class="citem"><span style="color:var(--mut)">Km făcuți azi</span><div style="font-size:22px;font-weight:700;color:var(--blue)" id="pfKm">…</div></div>
     <div class="citem"><span style="color:var(--mut)">Baterie</span> <span id="pfBat">—</span></div>
     <div class="actions"><button onclick="closeProfile()">Închide</button></div>
-  </div>
-</div>
-
-<!-- MODAL depozit + distanțe -->
-<div id="depotModal" class="modal hidden">
-  <div class="card" style="width:520px;max-width:94vw;max-height:90vh;overflow:auto">
-    <h3><span data-ic="depot" data-sz="20"></span> Depozit</h3>
-    <div style="border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:14px">
-      <div style="font-weight:600;margin-bottom:8px">Adresa depozitului</div>
-      <input id="depotAddr" placeholder="ex: Strada Depozitului 1, Buzău" />
-      <button class="primary" style="width:100%" onclick="saveDepot()">Salvează adresa</button>
-      <div id="depotStatus" style="font-size:12px;color:var(--mut);margin-top:8px"></div>
-    </div>
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-      <div style="font-weight:600;flex:1">Curieri → depozit</div>
-      <button onclick="loadDepotEtas()"><span data-ic="refresh"></span> Recalculează</button>
-    </div>
-    <div id="depotList"></div>
-    <div class="actions"><button onclick="closeDepot()">Închide</button></div>
-  </div>
-</div>
-
-<!-- MODAL raport curieri -->
-<div id="reportModal" class="modal hidden">
-  <div class="card" style="width:560px;max-width:94vw;max-height:90vh;overflow:auto">
-    <h3><span data-ic="chart" data-sz="20"></span> Raport curieri</h3>
-    <div style="display:flex;gap:8px;margin-bottom:14px">
-      <select id="repRange">
-        <option value="86400000">Azi (24h)</option>
-        <option value="604800000" selected>Ultimele 7 zile</option>
-        <option value="2592000000">Ultimele 30 zile</option>
-      </select>
-      <button class="primary" onclick="loadReport()">Generează</button>
-    </div>
-    <div id="repBody"></div>
-    <div class="actions"><button onclick="closeReport()">Închide</button></div>
-  </div>
-</div>
-
-<!-- MODAL curse pentru un curier -->
-<div id="coursesModal" class="modal hidden">
-  <div class="card" style="width:520px;max-height:90vh;overflow:auto">
-    <h3 id="coTitle">Curse</h3>
-    <div style="border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:14px">
-      <div style="font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:6px"><span data-ic="plus" data-sz="16"></span> Cursă nouă</div>
-      <input id="coName" placeholder="Persoană de contact" />
-      <input id="coPhone" placeholder="Telefon contact" />
-      <input id="coPickup" placeholder="Adresă preluare" />
-      <input id="coDrop" placeholder="Adresă livrare" />
-      <textarea id="coDetails" placeholder="Informații despre cursă"></textarea>
-      <label style="display:block;font-size:11px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;margin:2px 0 4px">Termen livrare (opțional)</label>
-      <input id="coDue" type="datetime-local" style="margin-bottom:8px" />
-      <button class="primary" style="width:100%" onclick="createCourse()">Adaugă cursa</button>
-    </div>
-    <div id="coList"></div>
-    <div class="actions"><button onclick="closeCourses()">Închide</button></div>
   </div>
 </div>
 
@@ -520,13 +461,9 @@ function renderKpis(){
   const total=devices.length;
   const online=devices.filter(d=>isOnline(d.last_seen)).length;
   const live=devices.filter(d=>d.last_lat!=null&&d.last_lng!=null).length;
-  const activeCourses=devices.reduce((s,d)=>s+(d.active_courses||0),0);
-  const lateCourses=devices.reduce((s,d)=>s+(d.late_courses||0),0);
   const onCls=(total&&online===0)?'warn':'good';
   el.innerHTML=
      '<div class="kpi '+onCls+'"><span class="kic">'+ic("user",15)+'</span><span class="lab">Online</span><span class="val">'+online+'/'+total+'</span></div>'
-    +'<div class="kpi'+(activeCourses?' good':'')+'"><span class="kic">'+ic("clipboard",15)+'</span><span class="lab">Curse active</span><span class="val">'+activeCourses+'</span></div>'
-    +'<div class="kpi'+(lateCourses?' warn':'')+'"><span class="kic">'+ic("alert",15)+'</span><span class="lab">Întârzieri</span><span class="val">'+lateCourses+'</span></div>'
     +'<div class="kpi"><span class="kic">'+ic("pin",15)+'</span><span class="lab">Pe hartă</span><span class="val">'+live+'</span></div>';
 }
 
@@ -563,21 +500,16 @@ function renderList(){
     html+='<div class="grp">'+esc(g)+'</div>';
     for(const dv of groups[g]){
       const on=isOnline(dv.last_seen);
-      const late=(dv.late_courses||0)>0, busy=(dv.active_courses||0)>0;
-      const ctag = late
-        ? '<span class="ctag late">'+ic("alert",11)+'Întârziat</span>'
-        : (busy?'<span class="ctag">'+dv.active_courses+(dv.active_courses>1?' curse':' cursă')+'</span>':'');
-      html+='<div class="dev'+(on?' online':'')+(late?' late':(busy?' busy':''))+(selected===dv.id?' sel':'')+'" onclick="selectDevice('+dv.id+')">'
+      html+='<div class="dev'+(on?' online':'')+(selected===dv.id?' sel':'')+'" onclick="selectDevice('+dv.id+')">'
         +'<div class="devrow">'
           +'<span class="avwrap" onclick="openProfile('+dv.id+',event)" style="cursor:pointer" title="Vezi profil">'+avatarHtml(dv,on,'devav')+'<span class="sdot '+(on?'on':'off')+'"></span></span>'
           +'<div class="devmain">'
-            +'<div class="n"><span class="nm">'+esc(dv.name)+'</span>'+ctag+'</div>'
+            +'<div class="n"><span class="nm">'+esc(dv.name)+'</span></div>'
             +'<div class="m">'+fmtAge(dv.last_seen)+(dv.last_battery!=null?' • '+ic("battery",13)+dv.last_battery+'%':'')+'</div>'
           +'</div>'
         +'</div>'
         +'<div class="devacts">'
           +'<span class="qrbtn" onclick="showCreds('+dv.id+',event)">'+ic("key",14)+'Cont</span>'
-          +'<span class="qrbtn" onclick="openCourses('+dv.id+',event)">'+ic("clipboard",14)+'Curse</span>'
           +'<span class="qrbtn" onclick="openMsg('+dv.id+',event)">'+ic("message",14)+'Mesaj'+(dv.last_msg_from==="driver"?' <span style="color:var(--gold)">●</span>':"")+'</span>'
         +'</div>'
         +'</div>';
@@ -640,7 +572,7 @@ async function loadHistory(){
   const pts=(d.points||[]).map(p=>[p.lat,p.lng]);
   if(pts.length<1){ alert("Fără poziții înregistrate în intervalul ales."); return; }
   histLayer=L.layerGroup().addTo(map);
-  L.polyline(pts,{color:"#d9a441",weight:4,opacity:.85}).addTo(histLayer);
+  L.polyline(pts,{color:"#8bf9ff",weight:4,opacity:.95,className:"glowline"}).addTo(histLayer);
   L.circleMarker(pts[0],{radius:6,color:"#3fb950",fillOpacity:1}).bindPopup("Start").addTo(histLayer);
   L.circleMarker(pts[pts.length-1],{radius:6,color:"#f85149",fillOpacity:1}).bindPopup("Sfârșit").addTo(histLayer);
   map.fitBounds(L.polyline(pts).getBounds().pad(0.2));
@@ -687,7 +619,7 @@ async function routeToPoint(destLat, destLng, destName){
     const route=d.routes[0];
     const coords=route.geometry.coordinates.map(c=>[c[1],c[0]]);
     routeLayer=L.layerGroup().addTo(map);
-    L.polyline(coords,{color:"#4aa3ff",weight:5,opacity:.85}).addTo(routeLayer);
+    L.polyline(coords,{color:"#5ad1ff",weight:5,opacity:.95,className:"glowline"}).addTo(routeLayer);
     L.circleMarker(o,{radius:6,color:"#3fb950",fillOpacity:1}).bindPopup(esc(dv.name)).addTo(routeLayer);
     L.marker([destLat,destLng]).bindPopup(destName?esc(destName):"Destinație").addTo(routeLayer);
     map.fitBounds(L.polyline(coords).getBounds().pad(0.2));
@@ -745,7 +677,6 @@ function openProfile(id,ev){
   document.getElementById("pfAv").innerHTML=avatarHtml(dv,on,'devav');
   document.getElementById("pfStatus").textContent=(on?"● online":"○ offline")+" • "+fmtAge(dv.last_seen);
   document.getElementById("pfBat").textContent=dv.last_battery!=null?(dv.last_battery+"%"):"—";
-  document.getElementById("pfOrders").textContent="…";
   document.getElementById("pfKm").textContent="…";
   document.getElementById("profileModal").classList.remove("hidden");
   loadProfileStats(id);
@@ -757,9 +688,8 @@ async function loadProfileStats(id){
   try{
     const r=await fetch(API+"/api/devices/"+id+"/stats?from="+from+"&to="+to,{headers:h(token)});
     const d=await r.json();
-    document.getElementById("pfOrders").textContent=(d.active_courses!=null?d.active_courses:"—");
     document.getElementById("pfKm").textContent=(d.km!=null?(d.km+" km"):"—");
-  }catch(e){ document.getElementById("pfOrders").textContent="eroare"; document.getElementById("pfKm").textContent="—"; }
+  }catch(e){ document.getElementById("pfKm").textContent="—"; }
 }
 
 // --- cont curier (user + parolă) ---
@@ -831,64 +761,6 @@ async function saveCreds(){
   if(d.ok){ alert("Cont actualizat. Dă curierului noile date de conectare."); closeCreds(); refresh(); }
   else alert(d.error||"Eroare");
 }
-// --- curse (admin) ---
-let coDevice = null, cdestMap = {};
-// ETA curier -> adresă (silențios, fără desen pe hartă)
-async function geocodeOne(addr){
-  try{ const r=await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&q="+encodeURIComponent(addr),{headers:{Accept:"application/json"}}); const a=await r.json(); if(a&&a.length) return [parseFloat(a[0].lat),parseFloat(a[0].lon)]; }catch(e){}
-  return null;
-}
-async function osrmKmMin(o,d){
-  try{ const u="https://router.project-osrm.org/route/v1/driving/"+o[1]+","+o[0]+";"+d[1]+","+d[0]+"?overview=false"; const r=await fetch(u); const j=await r.json(); if(j.code==="Ok"&&j.routes&&j.routes.length) return {km:(j.routes[0].distance/1000).toFixed(1),min:Math.round(j.routes[0].duration/60)}; }catch(e){}
-  return null;
-}
-async function courseEta(id){
-  const el=document.getElementById("ceta-"+id), addr=cdestMap[id]; if(!el||!addr) return;
-  const dv=devices.find(x=>x.id===coDevice);
-  if(!dv||dv.last_lat==null){ el.innerHTML=ic("nav",13)+" Curierul nu are o poziție cunoscută."; return; }
-  el.innerHTML=ic("nav",13)+" Calculez…";
-  const dest=await geocodeOne(addr);
-  if(!dest){ el.innerHTML=ic("nav",13)+" Adresa nu a fost găsită."; return; }
-  const rt=await osrmKmMin([dv.last_lat,dv.last_lng],dest);
-  el.innerHTML = rt ? (ic("nav",13)+" Curier → livrare: <b style='color:var(--blue)'>"+rt.km+" km • ~"+rt.min+" min</b>") : ic("nav",13)+" Rută indisponibilă.";
-}
-// --- depozit + distanțe curieri → depozit ---
-let depot=null;
-function openDepot(){ document.getElementById("depotModal").classList.remove("hidden"); loadDepot(); }
-function closeDepot(){ document.getElementById("depotModal").classList.add("hidden"); }
-async function loadDepot(){
-  try{
-    const r=await fetch(API+"/api/settings/depot",{headers:h(token)});
-    const d=await r.json(); depot=d.depot||null;
-    document.getElementById("depotAddr").value=depot?depot.address:"";
-    document.getElementById("depotStatus").innerHTML=depot?(ic("pin",13)+" Salvat: "+esc(depot.address)):"Neconfigurat.";
-  }catch(e){}
-  loadDepotEtas();
-}
-async function saveDepot(){
-  const addr=document.getElementById("depotAddr").value.trim();
-  if(!addr){ alert("Scrie adresa depozitului."); return; }
-  const st=document.getElementById("depotStatus");
-  st.textContent="Caut adresa…";
-  const ll=await geocodeOne(addr);
-  if(!ll){ st.textContent="Adresa nu a fost găsită pe hartă."; return; }
-  const r=await fetch(API+"/api/settings/depot",{method:"POST",headers:h(token),body:JSON.stringify({address:addr,lat:ll[0],lng:ll[1]})});
-  if(r.ok){ depot={address:addr,lat:ll[0],lng:ll[1]}; st.textContent="✔ Salvat: "+addr; loadDepotEtas(); }
-  else st.textContent="Eroare la salvare.";
-}
-function loadDepotEtas(){
-  const el=document.getElementById("depotList");
-  if(!depot){ el.innerHTML='<div style="color:var(--mut);font-size:13px">Setează întâi adresa depozitului.</div>'; return; }
-  const withPos=devices.filter(function(d){return d.last_lat!=null&&d.last_lng!=null;});
-  if(!withPos.length){ el.innerHTML='<div style="color:var(--mut);font-size:13px">Niciun curier cu poziție cunoscută.</div>'; return; }
-  el.innerHTML=withPos.map(function(d){ return '<div class="citem" id="deta-'+d.id+'"><b>'+esc(d.name)+'</b> — <span style="color:var(--mut)">calculez…</span></div>'; }).join("");
-  withPos.forEach(function(d){
-    osrmKmMin([d.last_lat,d.last_lng],[depot.lat,depot.lng]).then(function(rt){
-      const row=document.getElementById("deta-"+d.id); if(!row) return;
-      row.innerHTML='<b>'+esc(d.name)+'</b> — '+(rt?('<span style="color:var(--blue)">'+rt.km+' km • ~'+rt.min+' min</span>'):'<span style="color:var(--mut)">rută indisponibilă</span>');
-    });
-  });
-}
 // --- logo brand ---
 function bustLogos(){ document.querySelectorAll('img[src*="/brand/logo"]').forEach(function(i){ i.src="/brand/logo?t="+Date.now(); }); }
 function openLogo(){
@@ -913,107 +785,6 @@ async function resetLogo(){
   document.getElementById("lgPreview").src="/brand/logo?t="+Date.now();
   document.getElementById("lgStatus").textContent="Revenit la logo implicit.";
   bustLogos();
-}
-// --- raport ---
-function openReport(){ document.getElementById("reportModal").classList.remove("hidden"); loadReport(); }
-function closeReport(){ document.getElementById("reportModal").classList.add("hidden"); }
-async function loadReport(){
-  const range=Number(document.getElementById("repRange").value);
-  const to=Date.now(), from=to-range;
-  document.getElementById("repBody").innerHTML="Se încarcă…";
-  try{
-    const r=await fetch(API+"/api/report?from="+from+"&to="+to,{headers:h(token)});
-    const d=await r.json(); const rows=d.rows||[];
-    if(!rows.length){ document.getElementById("repBody").innerHTML='<div style="color:var(--mut)">Niciun curier.</div>'; return; }
-    let tc=0,td=0,tk=0;
-    let html='<table style="width:100%;border-collapse:collapse;font-size:13px"><tr style="color:var(--mut);text-align:left"><th style="padding:6px 4px">Curier</th><th>Curse</th><th>Finalizate</th><th>Km</th></tr>';
-    for(const x of rows){ tc+=x.courses_total; td+=x.courses_done; tk+=x.km;
-      html+='<tr style="border-top:1px solid var(--line)"><td style="padding:6px 4px">'+esc(x.name)+'</td><td>'+x.courses_total+'</td><td>'+x.courses_done+'</td><td>'+x.km+' km</td></tr>'; }
-    html+='<tr style="border-top:2px solid var(--line);font-weight:600"><td style="padding:6px 4px">TOTAL</td><td>'+tc+'</td><td>'+td+'</td><td>'+(Math.round(tk*10)/10)+' km</td></tr></table>';
-    document.getElementById("repBody").innerHTML=html;
-  }catch(e){ document.getElementById("repBody").innerHTML='<div style="color:#f85149">Eroare la generarea raportului.</div>'; }
-}
-const CST = { nou:"Nou", acceptat:"Acceptat", in_curs:"În curs", finalizat:"Finalizat", anulat:"Anulat" };
-function openCourses(id, ev){
-  if(ev) ev.stopPropagation();
-  const dv=devices.find(x=>x.id===id); if(!dv) return;
-  coDevice=id;
-  document.getElementById("coTitle").textContent="Curse — "+dv.name;
-  ["coName","coPhone","coPickup","coDrop","coDetails","coDue"].forEach(x=>document.getElementById(x).value="");
-  document.getElementById("coList").innerHTML="Se încarcă…";
-  document.getElementById("coursesModal").classList.remove("hidden");
-  loadCourses();
-}
-function closeCourses(){ document.getElementById("coursesModal").classList.add("hidden"); coDevice=null; }
-async function loadCourses(){
-  const r=await fetch(API+"/api/courses?device_id="+coDevice,{headers:h(token)});
-  const d=await r.json();
-  renderCourses(d.courses||[]);
-}
-function renderCourses(list){
-  const el=document.getElementById("coList");
-  if(!list.length){ el.innerHTML='<div style="color:var(--mut);font-size:13px;text-align:center;padding:14px">Nicio cursă încă pentru acest curier.</div>'; return; }
-  let h2="";
-  for(const c of list){
-    h2+='<div class="citem"><div class="ch"><span class="cnum">Cursa #'+c.number+'</span><span class="cbadge '+c.status+'">'+(CST[c.status]||c.status)+'</span></div>';
-    if(c.contact_name) h2+='<div class="cfield"><b>Contact:</b> '+esc(c.contact_name)+'</div>';
-    if(c.contact_phone) h2+='<div class="cfield"><b>Telefon:</b> '+esc(c.contact_phone)+'</div>';
-    if(c.pickup) h2+='<div class="cfield"><b>Preluare:</b> '+esc(c.pickup)+'</div>';
-    if(c.dropoff) h2+='<div class="cfield"><b>Livrare:</b> '+esc(c.dropoff)+'</div>';
-    if(c.details) h2+='<div class="cfield"><b>Detalii:</b> '+esc(c.details)+'</div>';
-    if(c.due_at){
-      const past = c.status!=="finalizat" && c.status!=="anulat" && c.due_at < Date.now();
-      h2+='<div class="cfield" style="margin-top:4px'+(past?';color:var(--dang);font-weight:600':';color:var(--mut)')+'">'+ic("clock",13)+' Termen: '+fmtWhen(c.due_at)+(past?' — ÎNTÂRZIAT':'')+'</div>';
-    }
-    h2+='<div class="cdocs" id="docs-'+c.id+'">'+(c.docs>0?('<a href="javascript:void(0)" onclick="viewDocs('+c.id+')">'+ic("file",13)+' Vezi '+c.docs+' document'+(c.docs>1?'e':'')+'</a>'):'<span style="color:var(--mut);font-size:12px">Niciun document</span>')+'</div>';
-    const cdest=c.dropoff||c.pickup||"";
-    if(cdest && c.status!=="finalizat" && c.status!=="anulat"){
-      cdestMap[c.id]=cdest;
-      h2+='<div class="cfield" id="ceta-'+c.id+'" style="margin-top:6px">'+ic("nav",13)+' Curier → livrare: <a href="javascript:void(0)" onclick="courseEta('+c.id+')" style="color:var(--gold)">Calculează</a></div>';
-    }
-    h2+='<div class="cactions"><button class="qrbtn" onclick="deleteCourse('+c.id+')">'+ic("trash",14)+'Șterge</button></div>';
-    h2+='</div>';
-  }
-  el.innerHTML=h2;
-}
-async function createCourse(){
-  if(!coDevice) return;
-  const dueVal=document.getElementById("coDue").value;
-  const body={
-    device_id:coDevice,
-    contact_name:document.getElementById("coName").value.trim(),
-    contact_phone:document.getElementById("coPhone").value.trim(),
-    pickup:document.getElementById("coPickup").value.trim(),
-    dropoff:document.getElementById("coDrop").value.trim(),
-    details:document.getElementById("coDetails").value.trim(),
-    due_at: dueVal ? new Date(dueVal).getTime() : null
-  };
-  const r=await fetch(API+"/api/courses",{method:"POST",headers:h(token),body:JSON.stringify(body)});
-  const d=await r.json();
-  if(d.number){ alert("Cursa #"+d.number+" a fost trimisă curierului."); ["coName","coPhone","coPickup","coDrop","coDetails","coDue"].forEach(x=>document.getElementById(x).value=""); loadCourses(); refresh(); }
-  else alert(d.error||"Eroare");
-}
-async function deleteCourse(id){
-  if(!confirm("Ștergi cursa și documentele ei?")) return;
-  await fetch(API+"/api/courses/"+id,{method:"DELETE",headers:h(token)});
-  loadCourses();
-}
-async function viewDocs(courseId){
-  const r=await fetch(API+"/api/courses/"+courseId+"/docs",{headers:h(token)});
-  const d=await r.json();
-  const el=document.getElementById("docs-"+courseId);
-  if(!d.docs||!d.docs.length){ el.innerHTML='<span style="color:var(--mut);font-size:12px">Niciun document</span>'; return; }
-  el.innerHTML=d.docs.map(x=>'<a href="javascript:void(0)" onclick="downloadDoc(\\''+x.id+'\\')">'+ic("paperclip",13)+' '+esc(x.filename||x.id)+'</a>').join("");
-}
-async function downloadDoc(id){
-  try{
-    const r=await fetch(API+"/api/docs/"+id,{headers:h(token)});
-    if(!r.ok){ alert("Nu am putut descărca documentul."); return; }
-    const blob=await r.blob();
-    const u=URL.createObjectURL(blob);
-    window.open(u,"_blank");
-    setTimeout(()=>URL.revokeObjectURL(u),60000);
-  }catch(e){ alert("Eroare la descărcare."); }
 }
 function pairLink(key){ return location.origin + "/pair?key=" + encodeURIComponent(key); }
 function copyText(t){
