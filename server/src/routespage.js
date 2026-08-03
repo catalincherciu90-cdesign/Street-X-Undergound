@@ -290,7 +290,7 @@ function stopRec(){
   if(geoWatch!=null){navigator.geolocation.clearWatch(geoWatch);geoWatch=null;}
   if(timeTimer){clearInterval(timeTimer);timeTimer=null;}
   var b=document.getElementById("recBtn");b.className="recbtn start";b.innerHTML=ic("rec")+" Start înregistrare";
-  document.getElementById("recHint").textContent="Apasă „Start" și condu — traseul se desenează singur.";
+  document.getElementById("recHint").textContent='Apasă „Start" și condu — traseul se desenează singur.';
   if(recPts.length<2){ toast("Traseu prea scurt. Condu puțin mai mult."); document.getElementById("liveStats").classList.remove("on"); return; }
   document.getElementById("saveSub").textContent=fmtKm(recDist)+" km · "+fmtDur((Date.now()-recStart)/1000)+" · "+recPts.length+" puncte";
   document.getElementById("rName").value="";
