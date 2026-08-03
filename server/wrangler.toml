@@ -28,4 +28,4 @@ id = "d311aaf627cb4ead8514d35fc63f7019"
 
 # Deploy declanșat prin GitHub Actions (secretele setate în repo).
 
-# redeploy (retry după eroare tranzitorie wrangler)
+# redeploy: publică APK-ul din public/ la /app.apk
