@@ -104,6 +104,26 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
   .mbtns button{flex:1;height:48px;border-radius:12px;font-weight:700;font-size:15px;cursor:pointer;border:1px solid var(--line2);background:var(--s3);color:var(--t1);font-family:"Rajdhani",sans-serif;letter-spacing:.02em}
   .mbtns button.primary{background:linear-gradient(180deg,#29e694,#1ec97e);color:#08130d;border-color:transparent}
 
+  /* chat prieteni */
+  .chatcard{display:flex;flex-direction:column;height:min(72vh,560px);padding:0 0 env(safe-area-inset-bottom)}
+  .chathead{display:flex;align-items:center;gap:8px;padding:14px 14px 12px;border-bottom:1px solid var(--line)}
+  .chatname{font-family:"Orbitron",sans-serif;font-size:14px;letter-spacing:.04em;flex:1;color:var(--t1)}
+  .chatx{background:none;border:none;color:var(--t3);cursor:pointer;padding:4px;display:grid;place-items:center}
+  .chatbody{flex:1;overflow-y:auto;padding:12px 12px 6px;display:flex;flex-direction:column;gap:7px}
+  .cbub{max-width:76%;padding:8px 11px;border-radius:13px;font-size:14px;line-height:1.35;word-wrap:break-word}
+  .cbub.them{align-self:flex-start;background:var(--s3);border:1px solid var(--line);border-bottom-left-radius:4px;color:var(--t1)}
+  .cbub.me{align-self:flex-end;background:linear-gradient(180deg,#1c7a52,#166540);border-bottom-right-radius:4px;color:#eafff5}
+  .cbub .ct{display:block;font-size:9.5px;opacity:.6;margin-top:3px;text-align:right;font-family:var(--mono)}
+  .chatempty{margin:auto;color:var(--t3);font-size:13px;text-align:center;padding:20px}
+  .chatinput{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--line)}
+  .chatinput input{flex:1;background:var(--s1);border:1px solid var(--line);color:var(--t1);border-radius:22px;padding:11px 15px;font-size:14px}
+  .chatsend{width:44px;height:44px;flex:0 0 44px;border-radius:50%;border:none;background:linear-gradient(180deg,#29e694,#1ec97e);color:#08130d;display:grid;place-items:center;cursor:pointer}
+  .fcode{font-family:var(--mono);letter-spacing:.16em;color:var(--acc);font-weight:700}
+  .fdot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:7px;flex:0 0 10px}
+  .fdot.on{background:var(--acc);box-shadow:0 0 6px var(--acc)}
+  .fdot.off{background:#3a4a42}
+  .unread{background:var(--pink);color:#fff;font:700 10px/1 var(--mono);padding:2px 6px;border-radius:9px;margin-left:6px}
+
   .toast{position:fixed;bottom:110px;left:50%;transform:translateX(-50%);background:var(--s3);border:1px solid var(--line2);border-radius:12px;padding:11px 18px;font-size:14px;opacity:0;transition:.2s;z-index:2500;box-shadow:0 8px 24px rgba(0,0,0,.5)}
   .toast.show{opacity:1}
   /* ---- mod „Condu" (busolă + hartă GPS) ---- */
@@ -172,6 +192,7 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
   <button id="tab-mine" onclick="setTab('mine')"><span class="ib" data-ic="route"></span>Traseele mele</button>
   <button id="tab-lib" onclick="setTab('lib')"><span class="ib" data-ic="globe"></span>Bibliotecă</button>
   <button id="tab-party" onclick="setTab('party')"><span class="ib" data-ic="users"></span>Party</button>
+  <button id="tab-friends" onclick="setTab('friends')"><span class="ib" data-ic="friend"></span>Prieteni</button>
 </div>
 
 <!-- modal salvare traseu -->
@@ -188,6 +209,21 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
     <div class="mbtns">
       <button onclick="discardRec()">Renunță</button>
       <button class="primary" id="saveBtn" onclick="saveRoute()">Salvează</button>
+    </div>
+  </div>
+</div>
+
+<!-- modal chat cu un prieten -->
+<div class="modal" id="chatModal">
+  <div class="card chatcard">
+    <div class="chathead">
+      <span class="chatname" id="chatName">Prieten</span>
+      <button class="chatx" onclick="closeChat()"><span data-ic="x" data-sz="18"></span></button>
+    </div>
+    <div class="chatbody" id="chatBody"></div>
+    <div class="chatinput">
+      <input type="text" id="chatText" placeholder="Scrie un mesaj…" autocomplete="off" onkeydown="if(event.key==='Enter')sendFriendMsg()" />
+      <button class="chatsend" onclick="sendFriendMsg()"><span data-ic="send" data-sz="18"></span></button>
     </div>
   </div>
 </div>
@@ -213,7 +249,11 @@ const ICP={
   trash:'<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
   eye:'<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/>',
   lock:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
-  unlock:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>'
+  unlock:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>',
+  friend:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>',
+  msg:'<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  send:'<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>',
+  plus:'<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>'
 };
 function ic(n,s){var x=s||18;return '<svg class="ic" width="'+x+'" height="'+x+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+(ICP[n]||"")+'</svg>';}
 function fillIcons(r){(r||document).querySelectorAll("[data-ic]").forEach(function(el){el.innerHTML=ic(el.getAttribute("data-ic"),el.getAttribute("data-sz")||20);});}
@@ -386,10 +426,12 @@ async function saveRoute(){
 let tab="rec",dataMine=[],dataLib=[],selRoute=null;
 function setTab(t){
   tab=t;
-  ["rec","mine","lib","party"].forEach(function(x){var el=document.getElementById("tab-"+x);if(el)el.classList.toggle("on",x===t);});
+  ["rec","mine","lib","party","friends"].forEach(function(x){var el=document.getElementById("tab-"+x);if(el)el.classList.toggle("on",x===t);});
   document.getElementById("sheetRec").style.display = t==="rec"?"":"none";
   document.getElementById("sheetList").style.display = t==="rec"?"none":"";
+  if(t!=="friends"){ clearFriendMarkers(); stopFriendsPolling(); }
   if(t==="party"){ renderParty(); loadParty(); }
+  else if(t==="friends"){ renderFriends(); loadFriends(); }
   else if(t!=="rec"){ renderList(); }
 }
 async function loadList(){
@@ -651,11 +693,166 @@ function renderParty(){
     +'<button class="recbtn stop" style="height:46px;margin-top:10px" onclick="leaveParty()">Ieși din party</button>';
 }
 
+// ---- Prieteni (listă, cod, party fără cod, poziții live, mesaje) ----
+let friends=[], myCode=null, friendMarkers={}, friendsTimer=null, chatWith=null, chatTimer=null;
+function clearFriendMarkers(){
+  Object.keys(friendMarkers).forEach(function(k){ if(map) map.removeLayer(friendMarkers[k]); });
+  friendMarkers={};
+}
+function friendIconDiv(name){
+  var html='<div style="display:flex;flex-direction:column;align-items:center">'
+    +'<div style="width:16px;height:16px;border-radius:50%;background:#4d9fff;border:2px solid #fff;box-shadow:0 0 8px #4d9fff"></div>'
+    +'<div style="margin-top:2px;background:rgba(10,15,13,.88);color:#fff;font:700 9px/1 \\'Rajdhani\\',sans-serif;padding:2px 6px;border-radius:6px;white-space:nowrap;border:1px solid #4d9fff">'+esc(name||"?")+'</div>'
+    +'</div>';
+  return L.divIcon({className:"flagmk",html:html,iconSize:[64,36],iconAnchor:[32,10]});
+}
+function drawFriendMarkers(){
+  if(!map || tab!=="friends") return;
+  var keep={};
+  friends.forEach(function(f){
+    if(f.lat==null||f.lng==null) return;
+    keep[f.id]=1;
+    if(friendMarkers[f.id]) friendMarkers[f.id].setLatLng([f.lat,f.lng]);
+    else friendMarkers[f.id]=L.marker([f.lat,f.lng],{icon:friendIconDiv(f.name),zIndexOffset:850}).addTo(map);
+  });
+  Object.keys(friendMarkers).forEach(function(k){ if(!keep[k]){ if(map)map.removeLayer(friendMarkers[k]); delete friendMarkers[k]; } });
+}
+async function loadMe(){
+  if(!key) return;
+  try{ var r=await fetch(API+"/api/my/me",{headers:hdr()}); var d=await r.json();
+    if(r.ok&&d.friend_code){ myCode=d.friend_code; if(tab==="friends") renderFriends(); } }catch(e){}
+}
+function startFriendsPolling(){ if(friendsTimer) return; friendsTimer=setInterval(function(){ if(tab==="friends") loadFriends(); else stopFriendsPolling(); },5000); }
+function stopFriendsPolling(){ if(friendsTimer){ clearInterval(friendsTimer); friendsTimer=null; } }
+async function loadFriends(){
+  if(!key) return;
+  try{
+    var r=await fetch(API+"/api/my/friends",{headers:hdr()}); var d=await r.json();
+    friends=d.friends||[];
+    if(tab==="friends"){ renderFriends(); drawFriendMarkers(); startFriendsPolling(); }
+  }catch(e){}
+}
+function renderFriends(){
+  var el=document.getElementById("listBody"); if(!el) return;
+  var head='<div class="secttl">Prieteni</div>'
+    +'<div class="ritem" style="cursor:default"><div class="rtop"><span class="rname">Codul meu: <b class="fcode">'+esc(myCode||"…")+'</b></span>'
+    +(myCode?'<button class="rbtn cyan" onclick="copyParty(\\''+esc(myCode)+'\\')">'+ic("copy",14)+' Copiază</button>':'')+'</div>'
+    +'<div class="rmeta">Dă codul unui prieten ca să te adauge — sau adaugă-l tu cu codul lui.</div></div>'
+    +'<div style="display:flex;gap:8px;margin:8px 0 4px">'
+    +'<input id="addFriendCode" placeholder="COD PRIETEN" style="flex:1;text-transform:uppercase;background:var(--s1);border:1px solid var(--line);color:var(--t1);border-radius:10px;padding:11px;font-size:15px;letter-spacing:.12em;text-align:center;font-family:var(--mono)" autocomplete="off" onkeydown="if(event.key===\\'Enter\\')addFriend()" />'
+    +'<button class="rbtn cyan" style="padding:0 14px" onclick="addFriend()">'+ic("plus",16)+' Adaugă</button></div>';
+  var body;
+  if(!friends.length){
+    body='<div class="empty"><div class="et">Niciun prieten încă</div><div class="es">Adaugă un prieten cu codul lui ca să conduceți împreună și să vă scrieți.</div></div>';
+  } else {
+    body=friends.map(function(f){
+      var on=f.online;
+      var nm=esc((f.name||"").replace(/'/g,""));
+      var badge=f.party_code?'<span class="rbadge pub">în party</span>':(on?'<span class="rbadge pub">online</span>':'<span class="rbadge priv">offline</span>');
+      var unread=f.unread?'<span class="unread">'+f.unread+'</span>':'';
+      var acts='<button class="rbtn cyan" onclick="openChat('+f.id+',\\''+nm+'\\')">'+ic("msg",14)+' Mesaj'+unread+'</button>';
+      if(f.party_code) acts+='<button class="rbtn" onclick="joinFriendParty(\\''+esc(f.party_code)+'\\')">'+ic("users",14)+' Intră</button>';
+      if(f.lat!=null&&f.lng!=null) acts+='<button class="rbtn" onclick="showFriendOnMap('+f.id+')">'+ic("nav",14)+' Pe hartă</button>';
+      acts+='<button class="rbtn pink" onclick="removeFriend('+f.id+',\\''+nm+'\\')">'+ic("trash",14)+' Șterge</button>';
+      return '<div class="ritem" style="cursor:default"><div class="rtop">'
+        +'<span class="fdot '+(on?"on":"off")+'"></span><span class="rname">'+esc(f.name||"?")+'</span>'+badge+'</div>'
+        +'<div class="racts">'+acts+'</div></div>';
+    }).join("");
+  }
+  el.innerHTML=head
+    +'<div style="margin:10px 2px 4px;font-size:12px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em">Lista mea</div>'
+    +body+'<div id="friendRoutes"></div>';
+  loadFriendRoutes();
+}
+async function loadFriendRoutes(){
+  try{
+    var r=await fetch(API+"/api/my/friends/routes",{headers:hdr()}); var d=await r.json();
+    var box=document.getElementById("friendRoutes"); if(!box) return;
+    var rts=d.routes||[];
+    if(!rts.length){ box.innerHTML=""; return; }
+    box.innerHTML='<div style="margin:14px 2px 4px;font-size:12px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em">Trasee de la prieteni</div>'
+      +rts.map(function(rt){ rt.is_public=1; return routeItemHtml(rt,false); }).join("");
+  }catch(e){}
+}
+async function addFriend(){
+  var inp=document.getElementById("addFriendCode"); var code=inp?inp.value.trim().toUpperCase():"";
+  if(!code){ toast("Scrie codul prietenului."); return; }
+  try{
+    var r=await fetch(API+"/api/my/friends/add",{method:"POST",headers:Object.assign({"Content-Type":"application/json"},hdr()),body:JSON.stringify({code:code})});
+    var d=await r.json();
+    if(r.ok){ toast(d.already?("Deja prieten cu "+(d.name||"")):("Adăugat: "+(d.name||"prieten"))); if(inp)inp.value=""; loadFriends(); }
+    else toast(d.error||"Cod invalid.");
+  }catch(e){ toast("Eroare de rețea."); }
+}
+async function removeFriend(id,name){
+  if(!confirm("Ștergi prietenul "+(name||"")+"?")) return;
+  try{ var r=await fetch(API+"/api/my/friends/remove",{method:"POST",headers:Object.assign({"Content-Type":"application/json"},hdr()),body:JSON.stringify({id:id})});
+    if(r.ok){ toast("Șters."); loadFriends(); } else toast("Eroare."); }catch(e){ toast("Eroare de rețea."); }
+}
+async function joinFriendParty(code){
+  try{
+    var r=await fetch(API+"/api/my/party/join",{method:"POST",headers:Object.assign({"Content-Type":"application/json"},hdr()),body:JSON.stringify({code:code})});
+    var d=await r.json();
+    if(r.ok){ toast("Ai intrat în party!"); party=null; setTab("party"); loadParty(); }
+    else toast(d.error||"Nu pot intra în party.");
+  }catch(e){ toast("Eroare de rețea."); }
+}
+function showFriendOnMap(id){
+  var f=null; for(var i=0;i<friends.length;i++){ if(friends[i].id===id){ f=friends[i]; break; } }
+  if(!f||f.lat==null){ toast("Prietenul nu e vizibil pe hartă acum."); return; }
+  drawFriendMarkers();
+  if(map) map.setView([f.lat,f.lng],15);
+  toast("Centrat pe "+(f.name||"prieten"));
+}
+function openChat(id,name){
+  chatWith=id;
+  document.getElementById("chatName").textContent=name||"Prieten";
+  document.getElementById("chatBody").innerHTML='<div class="chatempty">Se încarcă…</div>';
+  document.getElementById("chatModal").classList.add("on");
+  loadChat(true);
+  if(chatTimer) clearInterval(chatTimer);
+  chatTimer=setInterval(function(){ loadChat(false); },3000);
+  var t=document.getElementById("chatText"); if(t) setTimeout(function(){ t.focus(); },100);
+}
+function closeChat(){
+  document.getElementById("chatModal").classList.remove("on");
+  chatWith=null;
+  if(chatTimer){ clearInterval(chatTimer); chatTimer=null; }
+  loadFriends();
+}
+async function loadChat(scroll){
+  if(!chatWith) return;
+  try{
+    var r=await fetch(API+"/api/my/friends/messages/"+chatWith,{headers:hdr()}); var d=await r.json();
+    if(r.ok) renderChat(d.messages||[],scroll);
+  }catch(e){}
+}
+function renderChat(msgs,scroll){
+  var b=document.getElementById("chatBody"); if(!b) return;
+  if(!msgs.length){ b.innerHTML='<div class="chatempty">Niciun mesaj încă.<br>Scrie primul mesaj 👋</div>'; return; }
+  var atBottom=(b.scrollHeight-b.scrollTop-b.clientHeight)<50;
+  b.innerHTML=msgs.map(function(m){
+    var t=new Date(m.at); var hh=("0"+t.getHours()).slice(-2)+":"+("0"+t.getMinutes()).slice(-2);
+    return '<div class="cbub '+(m.mine?"me":"them")+'">'+esc(m.text)+'<span class="ct">'+hh+'</span></div>';
+  }).join("");
+  if(scroll||atBottom) b.scrollTop=b.scrollHeight;
+}
+async function sendFriendMsg(){
+  var inp=document.getElementById("chatText"); var text=inp?inp.value.trim():"";
+  if(!text||!chatWith) return;
+  inp.value="";
+  try{
+    var r=await fetch(API+"/api/my/friends/messages/"+chatWith,{method:"POST",headers:Object.assign({"Content-Type":"application/json"},hdr()),body:JSON.stringify({text:text})});
+    if(r.ok) loadChat(true); else { var d=await r.json(); toast(d.error||"Nu s-a trimis."); }
+  }catch(e){ toast("Eroare de rețea."); }
+}
+
 if(!key){ document.getElementById("recHint").textContent="Lipsește codul dispozitivului — deschide din aplicație."; }
 initMap();
 startLocate();
 loadList();
 loadParty();
+loadMe();
 </script>
 </body>
 </html>`;

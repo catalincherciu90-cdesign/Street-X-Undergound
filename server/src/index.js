@@ -175,6 +175,28 @@ function partyCode(len = 5) {
 }
 const PARTY_COLORS = ["#22e08a", "#4d9fff", "#ff2d95", "#eab54a", "#9b6bff", "#39c5cf", "#ff8a5b", "#7bd640"];
 
+// Întoarce codul de prieten al unui dispozitiv, generându-l dacă lipsește.
+async function ensureFriendCode(env, devId) {
+  const row = await env.DB.prepare("SELECT friend_code FROM devices WHERE id=?").bind(devId).first();
+  if (row && row.friend_code) return row.friend_code;
+  let code = partyCode(6);
+  for (let i = 0; i < 6; i++) {
+    const ex = await env.DB.prepare("SELECT id FROM devices WHERE friend_code=?").bind(code).first();
+    if (!ex) break;
+    code = partyCode(6);
+  }
+  await env.DB.prepare("UPDATE devices SET friend_code=? WHERE id=?").bind(code, devId).run();
+  return code;
+}
+
+// Id-urile dispozitivelor prietene ale unui dispozitiv.
+async function friendIdsOf(env, devId) {
+  const rows = await env.DB.prepare(
+    "SELECT CASE WHEN a=? THEN b ELSE a END AS fid FROM friendships WHERE a=? OR b=?"
+  ).bind(devId, devId, devId).all();
+  return (rows.results || []).map((r) => r.fid);
+}
+
 // ---------- schema auto (creează tabelele la prima cerere) ----------
 
 let schemaReady = false;
@@ -236,6 +258,23 @@ async function ensureSchema(env) {
     env.DB.prepare(
       "CREATE INDEX IF NOT EXISTS idx_pm_party ON party_members (party_id)"
     ),
+    // Prietenii: o legătură se salvează o singură dată (a<b).
+    env.DB.prepare(
+      "CREATE TABLE IF NOT EXISTS friendships (" +
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, a INTEGER NOT NULL, b INTEGER NOT NULL, created_at INTEGER NOT NULL)"
+    ),
+    env.DB.prepare(
+      "CREATE UNIQUE INDEX IF NOT EXISTS idx_friend_pair ON friendships (a, b)"
+    ),
+    // Mesaje directe între prieteni.
+    env.DB.prepare(
+      "CREATE TABLE IF NOT EXISTS friend_messages (" +
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, from_id INTEGER NOT NULL, to_id INTEGER NOT NULL, " +
+        "text TEXT NOT NULL, created_at INTEGER NOT NULL, read_at INTEGER)"
+    ),
+    env.DB.prepare(
+      "CREATE INDEX IF NOT EXISTS idx_fmsg_pair ON friend_messages (from_id, to_id, created_at)"
+    ),
   ]);
   // Migrare: adaugă user/parolă la tabelul devices dacă lipsesc (ignoră dacă există deja)
   try { await env.DB.prepare("ALTER TABLE devices ADD COLUMN username TEXT").run(); } catch (e) {}
@@ -243,6 +282,8 @@ async function ensureSchema(env) {
   try { await env.DB.prepare("ALTER TABLE devices ADD COLUMN has_avatar INTEGER DEFAULT 0").run(); } catch (e) {}
   try { await env.DB.prepare("ALTER TABLE messages ADD COLUMN sender TEXT DEFAULT 'admin'").run(); } catch (e) {}
   try { await env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_dev_username ON devices (username)").run(); } catch (e) {}
+  try { await env.DB.prepare("ALTER TABLE devices ADD COLUMN friend_code TEXT").run(); } catch (e) {}
+  try { await env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_dev_friendcode ON devices (friend_code)").run(); } catch (e) {}
   schemaReady = true;
 }
 
@@ -600,6 +641,106 @@ export default {
             in_party: true, code: party.code, name: party.name,
             route_id: party.route_id, members,
           });
+        }
+
+        // --- Prieteni ---
+        // Profilul meu (nume + cod de prieten, generat la nevoie)
+        if (path === "/api/my/me" && request.method === "GET") {
+          const code = await ensureFriendCode(env, dev.id);
+          return json({ id: dev.id, name: dev.name, friend_code: code });
+        }
+
+        // Lista de prieteni cu status live, party curent și mesaje necitite
+        if (path === "/api/my/friends" && request.method === "GET") {
+          const now = Date.now();
+          const rows = await env.DB.prepare(
+            "SELECT d.id, d.name, d.last_lat, d.last_lng, d.last_seen, " +
+            "(SELECT p.code FROM party_members pm JOIN parties p ON p.id=pm.party_id WHERE pm.device_id=d.id LIMIT 1) AS party_code, " +
+            "(SELECT COUNT(*) FROM friend_messages fm WHERE fm.from_id=d.id AND fm.to_id=? AND fm.read_at IS NULL) AS unread " +
+            "FROM friendships f JOIN devices d ON d.id = (CASE WHEN f.a=? THEN f.b ELSE f.a END) " +
+            "WHERE f.a=? OR f.b=? ORDER BY d.name"
+          ).bind(dev.id, dev.id, dev.id, dev.id).all();
+          const friends = (rows.results || []).map((r) => {
+            const fresh = r.last_seen && (now - r.last_seen) < 180000;
+            return {
+              id: r.id, name: r.name, party_code: r.party_code || null,
+              unread: r.unread || 0,
+              online: !!(r.last_seen && (now - r.last_seen) < 120000),
+              lat: fresh ? r.last_lat : null, lng: fresh ? r.last_lng : null,
+              last_seen: r.last_seen || null,
+            };
+          });
+          return json({ friends });
+        }
+
+        // Adaugă un prieten după codul lui
+        if (path === "/api/my/friends/add" && request.method === "POST") {
+          const b = await request.json().catch(() => ({}));
+          const code = (b.code || "").trim().toUpperCase();
+          if (!code) return json({ error: "cod lipsă" }, 400);
+          await ensureFriendCode(env, dev.id);
+          const other = await env.DB.prepare("SELECT id, name FROM devices WHERE friend_code=?").bind(code).first();
+          if (!other) return json({ error: "cod invalid" }, 404);
+          if (other.id === dev.id) return json({ error: "nu te poți adăuga pe tine" }, 400);
+          const a = Math.min(dev.id, other.id), c = Math.max(dev.id, other.id);
+          const ex = await env.DB.prepare("SELECT id FROM friendships WHERE a=? AND b=?").bind(a, c).first();
+          if (ex) return json({ ok: true, name: other.name, already: true });
+          await env.DB.prepare("INSERT INTO friendships (a, b, created_at) VALUES (?,?,?)").bind(a, c, Date.now()).run();
+          return json({ ok: true, name: other.name });
+        }
+
+        // Șterge un prieten
+        if (path === "/api/my/friends/remove" && request.method === "POST") {
+          const b = await request.json().catch(() => ({}));
+          const fid = Number(b.id);
+          if (!Number.isFinite(fid)) return json({ error: "id invalid" }, 400);
+          const a = Math.min(dev.id, fid), c = Math.max(dev.id, fid);
+          await env.DB.prepare("DELETE FROM friendships WHERE a=? AND b=?").bind(a, c).run();
+          return json({ ok: true });
+        }
+
+        // Traseele publice ale prietenilor
+        if (path === "/api/my/friends/routes" && request.method === "GET") {
+          const ids = await friendIdsOf(env, dev.id);
+          if (!ids.length) return json({ routes: [] });
+          const ph = ids.map(() => "?").join(",");
+          const rows = await env.DB.prepare(
+            "SELECT id, name, description, distance_m, duration_s, owner_name, owner_id, created_at " +
+            "FROM routes WHERE owner_type='device' AND is_public=1 AND owner_id IN (" + ph + ") " +
+            "ORDER BY created_at DESC LIMIT 300"
+          ).bind(...ids).all();
+          return json({ routes: rows.results || [] });
+        }
+
+        // Conversație directă cu un prieten: GET (istoric + marchează citit) / POST (trimite)
+        const fmm = path.match(/^\/api\/my\/friends\/messages\/(\d+)$/);
+        if (fmm) {
+          const fid = Number(fmm[1]);
+          const a = Math.min(dev.id, fid), c = Math.max(dev.id, fid);
+          const fr = await env.DB.prepare("SELECT id FROM friendships WHERE a=? AND b=?").bind(a, c).first();
+          if (!fr) return json({ error: "nu ești prieten cu acest utilizator" }, 403);
+          if (request.method === "GET") {
+            const rows = await env.DB.prepare(
+              "SELECT id, from_id, text, created_at FROM friend_messages " +
+              "WHERE (from_id=? AND to_id=?) OR (from_id=? AND to_id=?) ORDER BY created_at ASC LIMIT 300"
+            ).bind(dev.id, fid, fid, dev.id).all();
+            await env.DB.prepare(
+              "UPDATE friend_messages SET read_at=? WHERE from_id=? AND to_id=? AND read_at IS NULL"
+            ).bind(Date.now(), fid, dev.id).run();
+            const messages = (rows.results || []).map((m) => ({
+              id: m.id, text: m.text, at: m.created_at, mine: m.from_id === dev.id,
+            }));
+            return json({ messages });
+          }
+          if (request.method === "POST") {
+            const b = await request.json().catch(() => ({}));
+            const text = (b.text || "").trim();
+            if (!text) return json({ error: "mesaj gol" }, 400);
+            await env.DB.prepare(
+              "INSERT INTO friend_messages (from_id, to_id, text, created_at) VALUES (?,?,?,?)"
+            ).bind(dev.id, fid, text.slice(0, 1000), Date.now()).run();
+            return json({ ok: true });
+          }
         }
 
         return json({ error: "rută necunoscută" }, 404);
