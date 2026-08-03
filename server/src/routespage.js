@@ -213,7 +213,7 @@ function haversine(a,b,c,d){var R=6371000,p=Math.PI/180,dLa=(c-a)*p,dLo=(d-b)*p,
 // ---- hartă raster (fiabilă în WebView) cu look „Underground" din filtru CSS ----
 let map,recLine=null,viewLayer=null,meDot=null;
 function addBase(){
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",{maxZoom:20,subdomains:"abcd",attribution:"© OpenStreetMap © CARTO"}).addTo(map);
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}).addTo(map);
 }
 function initMap(){
   map=L.map("map",{zoomControl:false}).setView([45.9432,24.9668],7);

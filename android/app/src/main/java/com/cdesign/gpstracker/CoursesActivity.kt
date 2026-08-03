@@ -50,6 +50,8 @@ class CoursesActivity : AppCompatActivity() {
         web.settings.domStorageEnabled = true
         web.settings.allowFileAccess = true
         web.settings.setGeolocationEnabled(true)
+        // Nu cachea pagina — ia mereu versiunea proaspătă de pe server.
+        web.settings.cacheMode = android.webkit.WebSettings.LOAD_NO_CACHE
         web.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(
                 view: WebView?,
@@ -97,7 +99,7 @@ class CoursesActivity : AppCompatActivity() {
                 }
             }
         }
-        web.loadUrl("$url$path?key=$key")
+        web.loadUrl("$url$path?key=$key&t=" + System.currentTimeMillis())
     }
 
     private fun openExternal(uri: Uri): Boolean {

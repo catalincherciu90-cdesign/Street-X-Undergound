@@ -235,28 +235,28 @@ export default {
       // Dashboard
       if (path === "/" || path === "/index.html") {
         return new Response(DASHBOARD_HTML, {
-          headers: { "Content-Type": "text/html; charset=utf-8" },
+          headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
         });
       }
 
       // Pagina de conectare (link primit de șofer)
       if (path === "/pair") {
         return new Response(PAIR_HTML, {
-          headers: { "Content-Type": "text/html; charset=utf-8" },
+          headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
         });
       }
 
       // Pagina șoferului (chat) — deschisă în aplicație
       if (path === "/driver") {
         return new Response(DRIVER_HTML, {
-          headers: { "Content-Type": "text/html; charset=utf-8" },
+          headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
         });
       }
 
       // Pagina „Trasee" a utilizatorului — deschisă în aplicație
       if (path === "/routes") {
         return new Response(ROUTES_HTML, {
-          headers: { "Content-Type": "text/html; charset=utf-8" },
+          headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
         });
       }
 
