@@ -8,7 +8,7 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Street X Underground — Trasee</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="/leaflet.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;800&family=Rajdhani:wght@500;600;700&display=swap" />
@@ -180,7 +180,7 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
 
 <div class="toast" id="toast"></div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/leaflet.js"></script>
 <script>
 const API=location.origin;
 const params=new URLSearchParams(location.search);
@@ -212,17 +212,35 @@ function haversine(a,b,c,d){var R=6371000,p=Math.PI/180,dLa=(c-a)*p,dLo=(d-b)*p,
 
 // ---- hartă raster (fiabilă în WebView) cu look „Underground" din filtru CSS ----
 let map,recLine=null,viewLayer=null,meDot=null;
+function mapMsg(msg,color){
+  var m=document.getElementById("map"); if(!m) return;
+  var d=document.getElementById("mapMsg");
+  if(!d){ d=document.createElement("div"); d.id="mapMsg";
+    d.style.cssText="position:absolute;left:12px;right:12px;top:44%;text-align:center;color:"+(color||"#ff5b60")+";font-size:13.5px;z-index:600;pointer-events:none;text-shadow:0 1px 3px #000";
+    m.appendChild(d); }
+  d.style.color=color||"#ff5b60"; d.textContent=msg;
+}
+function clearMapMsg(){ var d=document.getElementById("mapMsg"); if(d) d.remove(); }
 function addBase(){
-  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}).addTo(map);
+  var tilesOk=false;
+  var layer=L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"});
+  layer.on("tileload",function(){ if(!tilesOk){ tilesOk=true; clearMapMsg(); } });
+  layer.on("tileerror",function(){ if(!tilesOk) mapMsg("Nu pot încărca harta (rețea/telefon blochează tile.openstreetmap.org).","#ff5b60"); });
+  layer.addTo(map);
+  mapMsg("Se încarcă harta…","#b9ccc0");
+  setTimeout(function(){ if(!tilesOk) mapMsg("Harta nu s-a încărcat — pare o problemă de rețea în aplicație.","#ff5b60"); },6000);
 }
 function initMap(){
-  map=L.map("map",{zoomControl:false}).setView([45.9432,24.9668],7);
-  addBase();
-  L.control.zoom({position:"bottomright"}).addTo(map);
-  var fix=function(){ if(map) map.invalidateSize(); };
-  setTimeout(fix,200); setTimeout(fix,600); setTimeout(fix,1500);
-  window.addEventListener("resize",fix);
-  window.addEventListener("load",fix);
+  if(typeof L==="undefined"){ mapMsg("Nu s-a încărcat motorul de hartă (Leaflet).","#ff5b60"); return; }
+  try{
+    map=L.map("map",{zoomControl:false}).setView([45.9432,24.9668],7);
+    addBase();
+    L.control.zoom({position:"bottomright"}).addTo(map);
+    var fix=function(){ if(map) map.invalidateSize(); };
+    setTimeout(fix,200); setTimeout(fix,600); setTimeout(fix,1500);
+    window.addEventListener("resize",fix);
+    window.addEventListener("load",fix);
+  }catch(e){ mapMsg("Eroare hartă: "+(e&&e.message?e.message:e),"#ff5b60"); }
 }
 
 // ---- înregistrare ----
