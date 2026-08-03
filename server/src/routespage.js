@@ -30,6 +30,10 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
   #map{flex:1 1 auto;position:relative;background:#0a1418;min-height:240px}
   .leaflet-container{background:#0a1418}
   .glowline{filter:drop-shadow(0 0 3px rgba(125,249,255,.9)) drop-shadow(0 0 7px rgba(34,224,138,.5))}
+  #locBtn{position:absolute;right:12px;bottom:14px;z-index:600;width:48px;height:48px;border-radius:50%;
+    background:rgba(18,26,22,.94);border:1px solid var(--line2);color:var(--acc);font-size:22px;
+    display:grid;place-items:center;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5)}
+  #locBtn:active{transform:scale(.94)}
   .flagmk{background:none!important;border:none!important}
   .flagmk .fe{font-size:24px;line-height:1;filter:drop-shadow(0 1px 2px #000);text-align:center}
   .flagmk .fl{font:700 9px/1 "Rajdhani",system-ui,sans-serif;letter-spacing:.06em;color:#08130d;padding:2px 6px;border-radius:6px;margin-top:2px;text-align:center;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.5)}
@@ -142,6 +146,7 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
     <div class="navinfo"><b id="navRemain">—</b> <span id="navNext"></span></div>
   </div>
   <button id="navExit" onclick="exitNav()"><span data-ic="x"></span> Ieși</button>
+  <button id="locBtn" onclick="locateMe()" title="Unde sunt">📍</button>
 </div>
 
 <!-- sheet ÎNREGISTRARE -->
@@ -245,13 +250,41 @@ function initMap(){
   try{
     map=L.map("map",{zoomControl:false}).setView([45.9432,24.9668],7);
     addBase();
-    L.control.zoom({position:"bottomright"}).addTo(map);
+    L.control.zoom({position:"bottomleft"}).addTo(map);
     var fix=function(){ if(map) map.invalidateSize(); dbg(); };
     [100,300,600,1200,2500,4000].forEach(function(t){ setTimeout(fix,t); });
     window.addEventListener("resize",fix);
     window.addEventListener("load",fix);
     if(window.ResizeObserver){ try{ new ResizeObserver(fix).observe(document.getElementById("map")); }catch(e){} }
   }catch(e){ mapMsg("Eroare hartă: "+(e&&e.message?e.message:e),"#ff5b60"); dbg(); }
+}
+
+// ---- poziția mea (pin live + centrare) ----
+let locWatch=null, myPos=null, locCentered=false, meAcc=null;
+function setMe(ll, acc){
+  if(!map) return;
+  if(!meDot){ meDot=L.circleMarker(ll,{radius:8,color:"#fff",weight:3,fillColor:"#22e08a",fillOpacity:1,className:"glowline"}).addTo(map); }
+  else meDot.setLatLng(ll);
+  if(acc && acc<3000){
+    if(!meAcc){ meAcc=L.circle(ll,{radius:acc,color:"#22e08a",weight:1,opacity:.35,fillColor:"#22e08a",fillOpacity:.07}).addTo(map); }
+    else { meAcc.setLatLng(ll); meAcc.setRadius(acc); }
+  }
+}
+function startLocate(){
+  if(!navigator.geolocation || locWatch!=null || !map) return;
+  locWatch=navigator.geolocation.watchPosition(function(p){
+    myPos=[p.coords.latitude,p.coords.longitude];
+    setMe(myPos, p.coords.accuracy);
+    if(!locCentered && !navOn){ locCentered=true; map.setView(myPos, 16); }
+  }, function(){}, {enableHighAccuracy:true, maximumAge:5000, timeout:15000});
+}
+function locateMe(){
+  if(myPos){ map.setView(myPos, Math.max(map.getZoom(),16)); return; }
+  if(!navigator.geolocation){ toast("GPS indisponibil pe acest dispozitiv."); return; }
+  toast("Caut poziția…");
+  navigator.geolocation.getCurrentPosition(function(p){
+    myPos=[p.coords.latitude,p.coords.longitude]; setMe(myPos,p.coords.accuracy); map.setView(myPos,16); startLocate();
+  }, function(){ toast("Nu pot citi GPS-ul. Verifică permisiunea de locație."); }, {enableHighAccuracy:true,timeout:15000});
 }
 
 // ---- înregistrare ----
@@ -478,6 +511,7 @@ function navPos(p){
 
 if(!key){ document.getElementById("recHint").textContent="Lipsește codul dispozitivului — deschide din aplicație."; }
 initMap();
+startLocate();
 loadList();
 </script>
 </body>
