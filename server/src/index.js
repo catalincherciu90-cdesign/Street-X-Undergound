@@ -165,6 +165,16 @@ function parseRouteGeometry(raw) {
   return { coords, distance_m: Math.round(dist * 1000) };
 }
 
+// Cod scurt pentru party (fără caractere ambigue)
+function partyCode(len = 5) {
+  const A = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  const b = crypto.getRandomValues(new Uint8Array(len));
+  let s = "";
+  for (let i = 0; i < len; i++) s += A[b[i] % A.length];
+  return s;
+}
+const PARTY_COLORS = ["#22e08a", "#4d9fff", "#ff2d95", "#eab54a", "#9b6bff", "#39c5cf", "#ff8a5b", "#7bd640"];
+
 // ---------- schema auto (creează tabelele la prima cerere) ----------
 
 let schemaReady = false;
@@ -209,6 +219,22 @@ async function ensureSchema(env) {
     ),
     env.DB.prepare(
       "CREATE INDEX IF NOT EXISTS idx_routes_public ON routes (is_public, created_at)"
+    ),
+    env.DB.prepare(
+      "CREATE TABLE IF NOT EXISTS parties (" +
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, code TEXT NOT NULL UNIQUE, name TEXT, " +
+        "route_id INTEGER, created_at INTEGER NOT NULL)"
+    ),
+    env.DB.prepare(
+      "CREATE TABLE IF NOT EXISTS party_members (" +
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, party_id INTEGER NOT NULL, device_id INTEGER NOT NULL, " +
+        "name TEXT, color TEXT, last_lat REAL, last_lng REAL, last_at INTEGER)"
+    ),
+    env.DB.prepare(
+      "CREATE UNIQUE INDEX IF NOT EXISTS idx_pm_uniq ON party_members (party_id, device_id)"
+    ),
+    env.DB.prepare(
+      "CREATE INDEX IF NOT EXISTS idx_pm_party ON party_members (party_id)"
     ),
   ]);
   // Migrare: adaugă user/parolă la tabelul devices dacă lipsesc (ignoră dacă există deja)
@@ -483,6 +509,90 @@ export default {
             await env.DB.prepare("DELETE FROM routes WHERE id=?").bind(rid).run();
             return json({ ok: true });
           }
+        }
+
+        // --- Party (condus împreună, poziții live) ---
+        if (path === "/api/my/party/create" && request.method === "POST") {
+          const b = await request.json().catch(() => ({}));
+          let routeId = Number(b.route_id);
+          if (!Number.isFinite(routeId) || routeId <= 0) routeId = null;
+          const name = (b.name || "").trim().slice(0, 60) || null;
+          let code = partyCode();
+          for (let i = 0; i < 5; i++) {
+            const ex = await env.DB.prepare("SELECT id FROM parties WHERE code=?").bind(code).first();
+            if (!ex) break;
+            code = partyCode();
+          }
+          const now = Date.now();
+          const res = await env.DB.prepare(
+            "INSERT INTO parties (code, name, route_id, created_at) VALUES (?,?,?,?)"
+          ).bind(code, name, routeId, now).run();
+          const pid = res.meta.last_row_id;
+          await env.DB.prepare("DELETE FROM party_members WHERE device_id=?").bind(dev.id).run();
+          await env.DB.prepare(
+            "INSERT INTO party_members (party_id, device_id, name, color, last_at) VALUES (?,?,?,?,?)"
+          ).bind(pid, dev.id, dev.name, PARTY_COLORS[0], now).run();
+          return json({ code, party_id: pid, route_id: routeId });
+        }
+
+        if (path === "/api/my/party/join" && request.method === "POST") {
+          const b = await request.json().catch(() => ({}));
+          const code = (b.code || "").trim().toUpperCase();
+          if (!code) return json({ error: "cod lipsă" }, 400);
+          const party = await env.DB.prepare("SELECT * FROM parties WHERE code=?").bind(code).first();
+          if (!party) return json({ error: "party inexistent" }, 404);
+          await env.DB.prepare("DELETE FROM party_members WHERE device_id=?").bind(dev.id).run();
+          const cnt = await env.DB.prepare("SELECT COUNT(*) AS n FROM party_members WHERE party_id=?").bind(party.id).first();
+          const color = PARTY_COLORS[(cnt.n || 0) % PARTY_COLORS.length];
+          await env.DB.prepare(
+            "INSERT INTO party_members (party_id, device_id, name, color, last_at) VALUES (?,?,?,?,?)"
+          ).bind(party.id, dev.id, dev.name, color, Date.now()).run();
+          return json({ ok: true, party_id: party.id, code: party.code, name: party.name, route_id: party.route_id });
+        }
+
+        if (path === "/api/my/party/leave" && request.method === "POST") {
+          await env.DB.prepare("DELETE FROM party_members WHERE device_id=?").bind(dev.id).run();
+          return json({ ok: true });
+        }
+
+        if (path === "/api/my/party/pos" && request.method === "POST") {
+          const b = await request.json().catch(() => ({}));
+          const lat = Number(b.lat), lng = Number(b.lng);
+          if (!isFinite(lat) || !isFinite(lng)) return json({ error: "lat/lng invalide" }, 400);
+          await env.DB.prepare(
+            "UPDATE party_members SET last_lat=?, last_lng=?, last_at=? WHERE device_id=?"
+          ).bind(lat, lng, Date.now(), dev.id).run();
+          return json({ ok: true });
+        }
+
+        if (path === "/api/my/party/route" && request.method === "GET") {
+          const mem = await env.DB.prepare("SELECT party_id FROM party_members WHERE device_id=?").bind(dev.id).first();
+          if (!mem) return json({ geometry: [] });
+          const party = await env.DB.prepare("SELECT route_id FROM parties WHERE id=?").bind(mem.party_id).first();
+          if (!party || !party.route_id) return json({ geometry: [] });
+          const route = await env.DB.prepare("SELECT geometry, name FROM routes WHERE id=?").bind(party.route_id).first();
+          if (!route) return json({ geometry: [] });
+          let coords = [];
+          try { coords = JSON.parse(route.geometry); } catch {}
+          return json({ geometry: coords, name: route.name });
+        }
+
+        if (path === "/api/my/party" && request.method === "GET") {
+          const mem = await env.DB.prepare("SELECT party_id FROM party_members WHERE device_id=?").bind(dev.id).first();
+          if (!mem) return json({ in_party: false });
+          const party = await env.DB.prepare("SELECT * FROM parties WHERE id=?").bind(mem.party_id).first();
+          if (!party) return json({ in_party: false });
+          const rows = await env.DB.prepare(
+            "SELECT device_id, name, color, last_lat, last_lng, last_at FROM party_members WHERE party_id=? ORDER BY id"
+          ).bind(party.id).all();
+          const members = (rows.results || []).map((m) => ({
+            name: m.name, color: m.color, lat: m.last_lat, lng: m.last_lng,
+            at: m.last_at, me: m.device_id === dev.id,
+          }));
+          return json({
+            in_party: true, code: party.code, name: party.name,
+            route_id: party.route_id, members,
+          });
         }
 
         return json({ error: "rută necunoscută" }, 404);

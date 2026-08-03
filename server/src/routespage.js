@@ -166,6 +166,7 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
   <button id="tab-rec" class="on" onclick="setTab('rec')"><span class="ib" data-ic="rec"></span>Înregistrează</button>
   <button id="tab-mine" onclick="setTab('mine')"><span class="ib" data-ic="route"></span>Traseele mele</button>
   <button id="tab-lib" onclick="setTab('lib')"><span class="ib" data-ic="globe"></span>Bibliotecă</button>
+  <button id="tab-party" onclick="setTab('party')"><span class="ib" data-ic="users"></span>Party</button>
 </div>
 
 <!-- modal salvare traseu -->
@@ -202,6 +203,8 @@ const ICP={
   nav:'<polygon points="3 11 22 2 13 21 11 13 3 11"/>',
   x:'<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
   globe:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18z"/>',
+  users:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  copy:'<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
   trash:'<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
   eye:'<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/>',
   lock:'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
@@ -357,10 +360,11 @@ async function saveRoute(){
 let tab="rec",dataMine=[],dataLib=[],selRoute=null;
 function setTab(t){
   tab=t;
-  ["rec","mine","lib"].forEach(function(x){var el=document.getElementById("tab-"+x);if(el)el.classList.toggle("on",x===t);});
+  ["rec","mine","lib","party"].forEach(function(x){var el=document.getElementById("tab-"+x);if(el)el.classList.toggle("on",x===t);});
   document.getElementById("sheetRec").style.display = t==="rec"?"":"none";
   document.getElementById("sheetList").style.display = t==="rec"?"none":"";
-  if(t!=="rec") renderList();
+  if(t==="party"){ renderParty(); loadParty(); }
+  else if(t!=="rec"){ renderList(); }
 }
 async function loadList(){
   if(!key){ return; }
@@ -380,7 +384,8 @@ function routeItemHtml(rt,mine){
     +(mine?'':'<div class="rowner">de la '+esc(rt.owner_name||"—")+'</div>')
     +'<div class="racts" onclick="event.stopPropagation()">'
     +'<button class="rbtn cyan" onclick="viewRoute('+rt.id+')">'+ic("eye",14)+' Vezi</button>'
-    +'<button class="rbtn" onclick="startNav('+rt.id+')">'+ic("nav",14)+' Condu</button>';
+    +'<button class="rbtn" onclick="startNav('+rt.id+')">'+ic("nav",14)+' Condu</button>'
+    +'<button class="rbtn" onclick="startParty('+rt.id+')">'+ic("users",14)+' Party</button>';
   if(mine){
     h+='<button class="rbtn" onclick="togglePublic('+rt.id+','+(rt.is_public?0:1)+')">'+ic(rt.is_public?"lock":"unlock",14)+(rt.is_public?' Fă privat':' Fă public')+'</button>'
       +'<button class="rbtn pink" onclick="delRoute('+rt.id+')">'+ic("trash",14)+' Șterge</button>';
@@ -509,10 +514,122 @@ function navPos(p){
   lastNavPos=[lat,lng];
 }
 
+// ---- Party (condus împreună, poziții live) ----
+let party=null, partyTimer=null, partyMarkers={}, partyRouteLayer=null;
+function memberIcon(m){
+  var html='<div style="display:flex;flex-direction:column;align-items:center">'
+    +'<div style="width:16px;height:16px;border-radius:50%;background:'+m.color+';border:2px solid #fff;box-shadow:0 0 8px '+m.color+'"></div>'
+    +'<div style="margin-top:2px;background:rgba(10,15,13,.88);color:#fff;font:700 9px/1 \\'Rajdhani\\',sans-serif;padding:2px 6px;border-radius:6px;white-space:nowrap;border:1px solid '+m.color+'">'+esc(m.name||"?")+'</div>'
+    +'</div>';
+  return L.divIcon({className:"flagmk",html:html,iconSize:[64,36],iconAnchor:[32,10]});
+}
+function renderPartyMembers(members){
+  if(!map) return;
+  Object.keys(partyMarkers).forEach(function(k){ map.removeLayer(partyMarkers[k]); }); partyMarkers={};
+  (members||[]).forEach(function(m,i){
+    if(m.me || m.lat==null || m.lng==null) return;
+    partyMarkers[i]=L.marker([m.lat,m.lng],{icon:memberIcon(m),zIndexOffset:900}).addTo(map);
+  });
+}
+async function drawPartyRoute(){
+  try{
+    var r=await fetch(API+"/api/my/party/route",{headers:hdr()}); var d=await r.json();
+    if(partyRouteLayer){ map.removeLayer(partyRouteLayer); partyRouteLayer=null; }
+    if(!d.geometry||d.geometry.length<2) return;
+    partyRouteLayer=L.layerGroup().addTo(map);
+    L.polyline(d.geometry,{color:"#8bf9ff",weight:5,opacity:.95,className:"glowline"}).addTo(partyRouteLayer);
+    addFlags(partyRouteLayer,d.geometry);
+    map.fitBounds(L.polyline(d.geometry).getBounds().pad(0.25));
+  }catch(e){}
+}
+async function loadParty(){
+  if(!key) return;
+  try{
+    var r=await fetch(API+"/api/my/party",{headers:hdr()}); var d=await r.json();
+    if(d.in_party){
+      var wasNull=!party; party=d;
+      if(wasNull && d.route_id) drawPartyRoute();
+      startPartyPolling();
+    } else { party=null; stopPartyPolling(); }
+    if(tab==="party") renderParty();
+  }catch(e){}
+}
+async function partyTick(){
+  if(!party) return;
+  try{
+    if(myPos){ fetch(API+"/api/my/party/pos",{method:"POST",headers:Object.assign({"Content-Type":"application/json"},hdr()),body:JSON.stringify({lat:myPos[0],lng:myPos[1]})}); }
+    var r=await fetch(API+"/api/my/party",{headers:hdr()}); var d=await r.json();
+    if(!d.in_party){ leavePartyLocal(); return; }
+    party=d; renderPartyMembers(d.members);
+    if(tab==="party") renderParty();
+  }catch(e){}
+}
+function startPartyPolling(){ stopPartyPolling(); partyTimer=setInterval(partyTick,2500); partyTick(); }
+function stopPartyPolling(){ if(partyTimer){ clearInterval(partyTimer); partyTimer=null; } }
+async function startParty(routeId){
+  try{
+    var r=await fetch(API+"/api/my/party/create",{method:"POST",headers:Object.assign({"Content-Type":"application/json"},hdr()),body:JSON.stringify({route_id:routeId})});
+    var d=await r.json();
+    if(r.ok&&d.code){ toast("Party creat! Cod: "+d.code); setTab("party"); loadParty(); }
+    else toast(d.error||"Eroare la creare party.");
+  }catch(e){ toast("Eroare de rețea."); }
+}
+async function joinParty(){
+  var inp=document.getElementById("partyCode"); var code=inp?inp.value.trim().toUpperCase():"";
+  if(!code){ toast("Scrie un cod de party."); return; }
+  try{
+    var r=await fetch(API+"/api/my/party/join",{method:"POST",headers:Object.assign({"Content-Type":"application/json"},hdr()),body:JSON.stringify({code:code})});
+    var d=await r.json();
+    if(r.ok){ toast("Ai intrat în party!"); party=null; loadParty(); }
+    else toast(d.error||"Cod invalid.");
+  }catch(e){ toast("Eroare de rețea."); }
+}
+async function leaveParty(){
+  try{ await fetch(API+"/api/my/party/leave",{method:"POST",headers:hdr()}); }catch(e){}
+  leavePartyLocal();
+}
+function leavePartyLocal(){
+  party=null; stopPartyPolling();
+  Object.keys(partyMarkers).forEach(function(k){ if(map) map.removeLayer(partyMarkers[k]); }); partyMarkers={};
+  if(partyRouteLayer && map){ map.removeLayer(partyRouteLayer); partyRouteLayer=null; }
+  if(tab==="party") renderParty();
+  toast("Ai ieșit din party.");
+}
+function copyParty(code){
+  if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(code).then(function(){ toast("Cod copiat: "+code); },function(){ toast("Cod: "+code); }); }
+  else toast("Cod: "+code);
+}
+function renderParty(){
+  var el=document.getElementById("listBody"); if(!el) return;
+  if(!party){
+    el.innerHTML='<div class="secttl">Party — condu cu prietenii</div>'
+      +'<div class="empty"><div class="et">Nu ești într-un party</div><div class="es">Creează un party de la un traseu (butonul „Party") sau intră cu un cod primit.</div></div>'
+      +'<input id="partyCode" placeholder="COD PARTY" style="text-transform:uppercase;width:100%;background:var(--s1);border:1px solid var(--line);color:var(--t1);border-radius:10px;padding:12px;font-size:16px;letter-spacing:.15em;text-align:center;font-family:ui-monospace,monospace" autocomplete="off" />'
+      +'<button class="recbtn start" style="height:46px;margin-top:8px" onclick="joinParty()">Intră în party</button>';
+    return;
+  }
+  var mem=party.members||[];
+  var list=mem.map(function(m){
+    var on=m.at&&(Date.now()-m.at<60000);
+    return '<div class="ritem" style="cursor:default"><div class="rtop">'
+      +'<span style="width:14px;height:14px;border-radius:50%;background:'+m.color+';display:inline-block;margin-right:8px;box-shadow:0 0 6px '+m.color+'"></span>'
+      +'<span class="rname">'+esc(m.name||"?")+(m.me?" (tu)":"")+'</span>'
+      +'<span class="rbadge '+(on?"pub":"priv")+'">'+(on?"live":"—")+'</span></div></div>';
+  }).join("");
+  el.innerHTML='<div class="secttl">Party activ</div>'
+    +'<div class="ritem" style="cursor:default"><div class="rtop"><span class="rname">Cod: <b style="color:var(--acc);letter-spacing:.14em;font-family:ui-monospace,monospace">'+esc(party.code)+'</b></span>'
+    +'<button class="rbtn cyan" onclick="copyParty(\\''+esc(party.code)+'\\')">'+ic("copy",14)+' Copiază</button></div>'
+    +'<div class="rmeta">Trimite codul prietenilor ca să intre în party.</div></div>'
+    +'<div style="margin:8px 2px 4px;font-size:12px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em">Membri ('+mem.length+')</div>'
+    +list
+    +'<button class="recbtn stop" style="height:46px;margin-top:10px" onclick="leaveParty()">Ieși din party</button>';
+}
+
 if(!key){ document.getElementById("recHint").textContent="Lipsește codul dispozitivului — deschide din aplicație."; }
 initMap();
 startLocate();
 loadList();
+loadParty();
 </script>
 </body>
 </html>`;
