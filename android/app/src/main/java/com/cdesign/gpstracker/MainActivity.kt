@@ -29,7 +29,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         // Adresa platformei (se poate schimba din câmpul „Server")
-        const val DEFAULT_SERVER = "https://gps-tracker.catalincherciu90.workers.dev"
+        const val DEFAULT_SERVER = "https://street-x-undergound.catalincherciu90.workers.dev"
     }
 
     private val requestFine = registerForActivityResult(
