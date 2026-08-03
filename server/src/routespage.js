@@ -468,6 +468,7 @@ let recording=false,recPts=[],recDist=0,recStart=0,geoWatch=null,timeTimer=null;
 function toggleRec(){ recording?stopRec():startRec(); }
 function startRec(){
   if(!navigator.geolocation){ toast("GPS indisponibil pe acest dispozitiv."); return; }
+  clearRecDraft();
   recPts=[];recDist=0;recStart=Date.now();recording=true;
   if(recLine){map.removeLayer(recLine);recLine=null;}
   document.getElementById("liveStats").classList.add("on");
@@ -490,6 +491,29 @@ function onPos(p){
   else recLine.setLatLngs(recPts);
   map.setView([lat,lng],Math.max(map.getZoom(),16));
   updateStats();
+  saveRecDraft();
+}
+// Salvează înregistrarea în curs local, ca să nu se piardă dacă se reîncarcă pagina.
+function saveRecDraft(){ try{ localStorage.setItem("sxu_rec_draft",JSON.stringify({pts:recPts,dist:recDist,start:recStart})); }catch(e){} }
+function clearRecDraft(){ try{ localStorage.removeItem("sxu_rec_draft"); }catch(e){} }
+function openSaveSheet(){
+  document.getElementById("saveSub").textContent=fmtKm(recDist)+" km · "+fmtDur((Date.now()-recStart)/1000)+" · "+recPts.length+" puncte";
+  document.getElementById("rName").value="";
+  document.getElementById("rDesc").value="";
+  document.getElementById("rPublic").checked=false;
+  document.getElementById("liveStats").classList.remove("on");
+  document.getElementById("saveModal").classList.add("on");
+}
+function checkRecDraft(){
+  if(recording) return;
+  var d=null; try{ d=JSON.parse(localStorage.getItem("sxu_rec_draft")||"null"); }catch(e){}
+  if(!d||!d.pts||d.pts.length<2) return;
+  recPts=d.pts; recDist=d.dist||0; recStart=d.start||Date.now();
+  if(recLine){ map.removeLayer(recLine); recLine=null; }
+  recLine=L.polyline(recPts,{color:"#8bf9ff",weight:5,opacity:.95,className:"glowline"}).addTo(map);
+  try{ map.fitBounds(L.polyline(recPts).getBounds().pad(0.2)); }catch(e){}
+  openSaveSheet();
+  toast("Înregistrare nesalvată recuperată — pune un nume și salveaz-o.");
 }
 function updateStats(){
   document.getElementById("stDist").textContent=fmtKm(recDist);
@@ -501,18 +525,14 @@ function stopRec(){
   if(timeTimer){clearInterval(timeTimer);timeTimer=null;}
   var b=document.getElementById("recBtn");b.className="recbtn start";b.innerHTML=ic("rec")+" Start înregistrare";
   document.getElementById("recHint").textContent='Apasă „Start" și condu — traseul se desenează singur.';
-  if(recPts.length<2){ toast("Traseu prea scurt. Condu puțin mai mult."); document.getElementById("liveStats").classList.remove("on"); return; }
-  document.getElementById("saveSub").textContent=fmtKm(recDist)+" km · "+fmtDur((Date.now()-recStart)/1000)+" · "+recPts.length+" puncte";
-  document.getElementById("rName").value="";
-  document.getElementById("rDesc").value="";
-  document.getElementById("rPublic").checked=false;
-  document.getElementById("saveModal").classList.add("on");
+  if(recPts.length<2){ toast("Traseu prea scurt. Condu puțin mai mult."); document.getElementById("liveStats").classList.remove("on"); clearRecDraft(); return; }
+  openSaveSheet();
 }
 function discardRec(){
   document.getElementById("saveModal").classList.remove("on");
   document.getElementById("liveStats").classList.remove("on");
   if(recLine){map.removeLayer(recLine);recLine=null;}
-  recPts=[];
+  recPts=[]; clearRecDraft();
 }
 async function saveRoute(){
   var name=document.getElementById("rName").value.trim();
@@ -522,7 +542,7 @@ async function saveRoute(){
     var body={name:name,description:document.getElementById("rDesc").value.trim(),public:document.getElementById("rPublic").checked,geometry:recPts,duration_s:Math.round((Date.now()-recStart)/1000)};
     var r=await fetch(API+"/api/my/routes",{method:"POST",headers:Object.assign({"Content-Type":"application/json"},hdr()),body:JSON.stringify(body)});
     var d=await r.json();
-    if(r.ok&&d.id){ toast("Traseu salvat ✔"); document.getElementById("saveModal").classList.remove("on"); document.getElementById("liveStats").classList.remove("on"); if(recLine){map.removeLayer(recLine);recLine=null;} recPts=[]; setTab("mine"); }
+    if(r.ok&&d.id){ toast("Traseu salvat ✔"); clearRecDraft(); document.getElementById("saveModal").classList.remove("on"); document.getElementById("liveStats").classList.remove("on"); if(recLine){map.removeLayer(recLine);recLine=null;} recPts=[]; setTab("mine"); }
     else toast(d.error||"Eroare la salvare.");
   }catch(e){ toast("Eroare de rețea."); }
   btn.disabled=false;btn.textContent="Salvează";
@@ -1297,6 +1317,7 @@ loadList();
 loadParty();
 loadMe();
 requestWake();
+setTimeout(checkRecDraft, 700);
 </script>
 </body>
 </html>`;
