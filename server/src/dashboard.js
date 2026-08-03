@@ -8,6 +8,7 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>DropLy Courier</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
 <style>
   :root{
     --bg:#0a0f0d;--panel:#101815;--s1:#101815;--s2:#161f1b;--s3:#1c2622;
@@ -141,8 +142,7 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
   .mkav{width:50px;height:50px;min-width:50px;aspect-ratio:1/1;border-radius:50%;border:3px solid var(--gold);background:#0e1620;color:#fff;font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 12px rgba(0,0,0,.6);letter-spacing:.5px;overflow:hidden}
   img.mkav{object-fit:cover;display:block;padding:0}
   .mkname{margin-top:5px;padding:3px 10px;border-radius:8px;color:#12202b;font-size:11px;font-weight:700;white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis;box-shadow:0 2px 6px rgba(0,0,0,.5)}
-  /* Temă „Underground": uscat oliv întunecat + drumuri aproape albe, bold (ca pe harta din joc) */
-  .leaflet-tile-pane{filter:brightness(1.28) contrast(1.8) saturate(.25) sepia(.18) hue-rotate(115deg)}
+  /* Culorile hărții vin acum din stilul vectorial (uscat oliv, apă albastră, drumuri albe). */
   /* rute/trasee cu efect neon (glow) ca pe harta din joc */
   .glowline{filter:drop-shadow(0 0 3px rgba(125,249,255,.9)) drop-shadow(0 0 7px rgba(34,224,138,.5))}
   /* dark leaflet controls */
@@ -361,6 +361,8 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.0.22/leaflet-maplibre-gl.js"></script>
 <script>
 const API = location.origin;
 let token = localStorage.getItem("gps_token") || "";
@@ -427,6 +429,42 @@ function toggleSide(){
   setTimeout(function(){ if(map) map.invalidateSize(); }, 250);
 }
 
+// Stil vectorial „Street X Underground": uscat oliv, apă albastru-adânc, drumuri albe cu glow.
+// Sursă de dale vectoriale gratuită, fără cheie API (OpenFreeMap / schema OpenMapTiles).
+const MAP_STYLE={
+  version:8,
+  sources:{ omt:{ type:"vector", url:"https://tiles.openfreemap.org/planet" } },
+  layers:[
+    { id:"bg", type:"background", paint:{ "background-color":"#39422f" } },
+    { id:"landcover", type:"fill", source:"omt", "source-layer":"landcover",
+      paint:{ "fill-color":"#3d4a30", "fill-opacity":0.55 } },
+    { id:"landuse", type:"fill", source:"omt", "source-layer":"landuse",
+      paint:{ "fill-color":"#39432e", "fill-opacity":0.4 } },
+    { id:"water", type:"fill", source:"omt", "source-layer":"water",
+      paint:{ "fill-color":"#123a57" } },
+    { id:"waterway", type:"line", source:"omt", "source-layer":"waterway",
+      paint:{ "line-color":"#123a57", "line-width":1.2 } },
+    { id:"roads-glow", type:"line", source:"omt", "source-layer":"transportation",
+      layout:{ "line-cap":"round", "line-join":"round" },
+      paint:{ "line-color":"#bfeffe", "line-blur":3, "line-opacity":0.35,
+        "line-width":["interpolate",["linear"],["zoom"], 11,3, 14,6, 17,13, 20,22] } },
+    { id:"roads", type:"line", source:"omt", "source-layer":"transportation",
+      layout:{ "line-cap":"round", "line-join":"round" },
+      paint:{ "line-color":"#eef4f0",
+        "line-width":["interpolate",["linear"],["zoom"], 6,0.4, 11,1.4, 14,3, 17,7, 20,16] } }
+  ]
+};
+function addBaseLayer(){
+  // Preferă harta vectorială (aspect „Underground"). Dacă motorul WebGL/pluginul lipsește, cade pe raster.
+  try{
+    if(typeof L.maplibreGL==="function" && window.maplibregl){
+      L.maplibreGL({ style:MAP_STYLE, attribution:"© OpenMapTiles © OpenStreetMap" }).addTo(map);
+      return;
+    }
+  }catch(e){}
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+    { maxZoom:20, subdomains:"abcd", attribution:"© OpenStreetMap © CARTO" }).addTo(map);
+}
 function showApp(){
   document.getElementById("login").classList.add("hidden");
   document.getElementById("app").classList.remove("hidden");
@@ -435,7 +473,7 @@ function showApp(){
   if(map) setTimeout(function(){ map.invalidateSize(); }, 260);
   if(!map){
     map = L.map("map",{zoomControl:false}).setView([45.9432,24.9668],7); // România
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",{maxZoom:20,subdomains:"abcd",attribution:"© OpenStreetMap © CARTO"}).addTo(map);
+    addBaseLayer();
     L.control.zoom({position:"bottomright"}).addTo(map);
     window.addEventListener("resize", function(){ if(map) map.invalidateSize(); });
     setTimeout(function(){ map.invalidateSize(); }, 300);
