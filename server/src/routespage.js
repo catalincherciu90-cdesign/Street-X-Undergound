@@ -30,6 +30,9 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
   #map{flex:1 1 auto;position:relative;background:#0a1418;min-height:240px}
   .leaflet-container{background:#0a1418}
   .glowline{filter:drop-shadow(0 0 3px rgba(125,249,255,.9)) drop-shadow(0 0 7px rgba(34,224,138,.5))}
+  .flagmk{background:none!important;border:none!important}
+  .flagmk .fe{font-size:24px;line-height:1;filter:drop-shadow(0 1px 2px #000);text-align:center}
+  .flagmk .fl{font:700 9px/1 "Rajdhani",system-ui,sans-serif;letter-spacing:.06em;color:#08130d;padding:2px 6px;border-radius:6px;margin-top:2px;text-align:center;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.5)}
 
   /* stats live peste hartă */
   #liveStats{position:absolute;left:12px;right:12px;top:12px;z-index:500;display:none;gap:8px}
@@ -139,7 +142,6 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
     <div class="navinfo"><b id="navRemain">—</b> <span id="navNext"></span></div>
   </div>
   <button id="navExit" onclick="exitNav()"><span data-ic="x"></span> Ieși</button>
-  <div id="dbg" style="position:absolute;left:8px;top:8px;z-index:650;background:rgba(0,0,0,.6);color:#8bf9ff;font:11px/1.3 ui-monospace,monospace;padding:4px 7px;border-radius:6px;pointer-events:none">init…</div>
 </div>
 
 <!-- sheet ÎNREGISTRARE -->
@@ -367,6 +369,18 @@ function renderList(){
     el.innerHTML=h2;
   }
 }
+function flagIcon(kind){
+  var finish = kind==="finish";
+  var emoji = finish ? "🏁" : "🚩";
+  var color = finish ? "#ff2d95" : "#22e08a";
+  var label = finish ? "FINISH" : "START";
+  var html='<div class="fe">'+emoji+'</div><div class="fl" style="background:'+color+'">'+label+'</div>';
+  return L.divIcon({className:"flagmk",html:html,iconSize:[54,44],iconAnchor:[27,40]});
+}
+function addFlags(layer,pts){
+  L.marker(pts[0],{icon:flagIcon("start"),zIndexOffset:1000}).bindPopup("Start").addTo(layer);
+  L.marker(pts[pts.length-1],{icon:flagIcon("finish"),zIndexOffset:1000}).bindPopup("Finish").addTo(layer);
+}
 async function viewRoute(id,elm){
   selRoute=id; renderList();
   try{
@@ -377,8 +391,7 @@ async function viewRoute(id,elm){
     var pts=d.geometry;
     viewLayer=L.layerGroup().addTo(map);
     L.polyline(pts,{color:"#8bf9ff",weight:5,opacity:.95,className:"glowline"}).addTo(viewLayer);
-    L.circleMarker(pts[0],{radius:7,color:"#22e08a",fillColor:"#22e08a",fillOpacity:1}).bindPopup("Start").addTo(viewLayer);
-    L.circleMarker(pts[pts.length-1],{radius:7,color:"#ff2d95",fillColor:"#ff2d95",fillOpacity:1}).bindPopup("Final").addTo(viewLayer);
+    addFlags(viewLayer,pts);
     map.fitBounds(L.polyline(pts).getBounds().pad(0.25));
   }catch(e){ toast("Eroare la deschidere."); }
 }
@@ -412,8 +425,7 @@ async function startNav(id){
     if(viewLayer){map.removeLayer(viewLayer);viewLayer=null;}
     viewLayer=L.layerGroup().addTo(map);
     L.polyline(navRoute,{color:"#8bf9ff",weight:5,opacity:.95,className:"glowline"}).addTo(viewLayer);
-    L.circleMarker(navRoute[0],{radius:6,color:"#22e08a",fillColor:"#22e08a",fillOpacity:1}).addTo(viewLayer);
-    L.circleMarker(navRoute[navRoute.length-1],{radius:7,color:"#ff2d95",fillColor:"#ff2d95",fillOpacity:1}).bindPopup("Final").addTo(viewLayer);
+    addFlags(viewLayer,navRoute);
     document.body.classList.add("nav-on");
     var arrow=document.getElementById("navArrow"); if(arrow) arrow.style.opacity="1";
     document.getElementById("navRemain").textContent="Pornește GPS-ul…";
