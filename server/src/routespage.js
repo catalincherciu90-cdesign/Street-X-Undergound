@@ -139,6 +139,8 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
     padding:6px 14px;font-family:var(--mono);font-size:14px;color:var(--t1)}
   .navinfo b{color:var(--cyan)}
   .navinfo b.arrived{color:var(--acc)}
+  body.approach-on .navinfo b{color:#eab54a}
+  body.approach-on .compass{border-color:#eab54a;box-shadow:0 0 16px rgba(234,181,74,.5)}
   #navExit{position:absolute;left:12px;top:calc(12px + env(safe-area-inset-top));z-index:701;display:none;
     align-items:center;gap:6px;background:rgba(10,15,13,.9);border:1px solid var(--line2);color:var(--t1);
     border-radius:12px;padding:10px 13px;font-weight:600;font-family:"Rajdhani",system-ui,sans-serif;cursor:pointer}
@@ -512,6 +514,8 @@ async function delRoute(id){
 
 // ---- mod „Condu" (navigație pe un traseu salvat) ----
 let navOn=false, navRoute=[], navWatch=null, lastNavPos=null;
+// fază „către start" — ghidare până la începutul traseului
+let navStage=null, startPt=null, approachLine=null, approachPath=[], approachSteps=[], approachStepIdx=1;
 function bearing(a,b,c,d){
   var p=Math.PI/180, y=Math.sin((d-b)*p)*Math.cos(c*p),
       x=Math.cos(a*p)*Math.sin(c*p)-Math.sin(a*p)*Math.cos(c*p)*Math.cos((d-b)*p);
@@ -528,6 +532,8 @@ async function startNav(id){
     var d=await r.json();
     if(!r.ok||!d.geometry||d.geometry.length<2){ toast(d.error||"Traseu indisponibil."); return; }
     navRoute=d.geometry; lastNavPos=null; navOn=true;
+    navStage=null; startPt=navRoute[0]; approachPath=[]; approachSteps=[]; approachStepIdx=1;
+    if(approachLine){map.removeLayer(approachLine);approachLine=null;}
     if(viewLayer){map.removeLayer(viewLayer);viewLayer=null;}
     viewLayer=L.layerGroup().addTo(map);
     L.polyline(navRoute,{color:"#8bf9ff",weight:5,opacity:.95,className:"glowline"}).addTo(viewLayer);
@@ -542,10 +548,85 @@ async function startNav(id){
   }catch(e){ toast("Eroare la pornirea navigației."); }
 }
 function exitNav(){
-  navOn=false;
-  document.body.classList.remove("nav-on");
+  navOn=false; navStage=null;
+  document.body.classList.remove("nav-on"); document.body.classList.remove("approach-on");
+  if(approachLine){ map.removeLayer(approachLine); approachLine=null; }
   if(navWatch!=null){ navigator.geolocation.clearWatch(navWatch); navWatch=null; }
   setTimeout(function(){ if(map) map.invalidateSize(); },120);
+}
+// ---- ghidare până la START (OSRM) ----
+function dirTxt(mod){ if(mod&&mod.indexOf("left")>=0) return "stânga"; if(mod&&mod.indexOf("right")>=0) return "dreapta"; return "înainte"; }
+function virTxt(mod){
+  switch(mod){
+    case "left": return "Virează la stânga"; case "right": return "Virează la dreapta";
+    case "slight left": return "Ușor la stânga"; case "slight right": return "Ușor la dreapta";
+    case "sharp left": return "Strâns la stânga"; case "sharp right": return "Strâns la dreapta";
+    case "uturn": return "Întoarcere"; default: return "Continuă înainte";
+  }
+}
+function osrmStepText(st){
+  var m=st.maneuver||{}, t=m.type||"", mod=m.modifier||"", nm=st.name||"";
+  var onName=nm?(" pe "+nm):"";
+  if(t==="depart") return "Pornește"+onName;
+  if(t==="arrive") return "Ai ajuns la start";
+  if(t==="roundabout"||t==="rotary"){ return "La sensul giratoriu"+(m.exit?(" ieșirea "+m.exit):""); }
+  if(t==="merge") return "Intră"+onName;
+  if(t==="fork") return "La bifurcație, ține "+dirTxt(mod);
+  if(t==="end of road") return "La capăt, "+dirTxt(mod);
+  if(t==="on ramp"||t==="off ramp") return "Ia breteaua "+dirTxt(mod);
+  if(mod==="straight"||!mod) return "Continuă înainte"+onName;
+  return virTxt(mod)+onName;
+}
+async function buildApproach(lat,lng){
+  approachPath=[]; approachSteps=[]; approachStepIdx=1;
+  if(approachLine){ map.removeLayer(approachLine); approachLine=null; }
+  var s=startPt;
+  try{
+    var url="https://router.project-osrm.org/route/v1/driving/"+lng+","+lat+";"+s[1]+","+s[0]+"?overview=full&geometries=geojson&steps=true";
+    var r=await fetch(url); var d=await r.json();
+    if(d&&d.routes&&d.routes[0]){
+      approachPath=d.routes[0].geometry.coordinates.map(function(c){return [c[1],c[0]];});
+      var legs=d.routes[0].legs||[];
+      if(legs[0]&&legs[0].steps) approachSteps=legs[0].steps.map(function(st){ return {loc:[st.maneuver.location[1],st.maneuver.location[0]], text:osrmStepText(st)}; });
+    }
+  }catch(e){}
+  if(approachPath.length<2) approachPath=[[lat,lng],[s[0],s[1]]]; // fallback: linie dreaptă
+  if(map) approachLine=L.polyline(approachPath,{color:"#eab54a",weight:5,opacity:.9,dashArray:"2 9",lineCap:"round"}).addTo(map);
+  toast("Te duc întâi la start ("+(haversine(lat,lng,s[0],s[1])/1000).toFixed(1)+" km)");
+}
+function nextManeuver(lat,lng){
+  if(!approachSteps.length) return null;
+  while(approachStepIdx<approachSteps.length-1 && haversine(lat,lng,approachSteps[approachStepIdx].loc[0],approachSteps[approachStepIdx].loc[1])<30) approachStepIdx++;
+  return approachSteps[approachStepIdx]?approachSteps[approachStepIdx].text:null;
+}
+function switchToRoute(lat,lng){
+  navStage="route";
+  document.body.classList.remove("approach-on");
+  if(approachLine){ map.removeLayer(approachLine); approachLine=null; }
+  approachPath=[]; approachSteps=[];
+  toast("Ai ajuns la start! 🏁 Traseul începe.");
+  routeGuide(lat,lng,0,null);
+}
+function approachGuide(lat,lng,spd,heading){
+  var dStart=haversine(lat,lng,startPt[0],startPt[1]);
+  if(dStart<40){ switchToRoute(lat,lng); return; }
+  var tgt=startPt, remain=dStart, nextTxt="spre START";
+  if(approachPath.length>1){
+    var bi=0,bd=Infinity;
+    for(var i=0;i<approachPath.length;i++){ var dd=haversine(lat,lng,approachPath[i][0],approachPath[i][1]); if(dd<bd){bd=dd;bi=i;} }
+    var ti=bi; while(ti<approachPath.length-1 && haversine(lat,lng,approachPath[ti][0],approachPath[ti][1])<25) ti++;
+    tgt=approachPath[ti];
+    remain=haversine(lat,lng,approachPath[bi][0],approachPath[bi][1]);
+    for(var j=bi;j<approachPath.length-1;j++) remain+=haversine(approachPath[j][0],approachPath[j][1],approachPath[j+1][0],approachPath[j+1][1]);
+    var st=nextManeuver(lat,lng); if(st) nextTxt=st;
+  }
+  var toTgt=bearing(lat,lng,tgt[0],tgt[1]);
+  var rot=(heading!=null)?(toTgt-heading):toTgt;
+  var arrow=document.getElementById("navArrow"); if(arrow){ arrow.style.opacity="1"; arrow.style.transform="rotate("+rot+"deg)"; }
+  var remEl=document.getElementById("navRemain"), nextEl=document.getElementById("navNext");
+  var ds=(remain<1000?Math.round(remain)+" m":(remain/1000).toFixed(1)+" km");
+  if(remEl){ remEl.textContent="→ "+nextTxt; remEl.className=""; }
+  if(nextEl) nextEl.textContent="· "+ds+" până la START";
 }
 function navPos(p){
   if(!navOn||!navRoute.length) return;
@@ -558,6 +639,17 @@ function navPos(p){
   var heading=null;
   if(p.coords.heading!=null && !isNaN(p.coords.heading) && spd>=2) heading=p.coords.heading;
   else if(lastNavPos){ var mv=haversine(lastNavPos[0],lastNavPos[1],lat,lng); if(mv>3) heading=bearing(lastNavPos[0],lastNavPos[1],lat,lng); }
+  // decide faza la prima poziție: dacă ești departe de start, ghidează-te întâi acolo
+  if(navStage===null){
+    var d0=haversine(lat,lng,startPt[0],startPt[1]);
+    if(d0>60){ navStage="approach"; document.body.classList.add("approach-on"); buildApproach(lat,lng); }
+    else navStage="route";
+  }
+  if(navStage==="approach"){ approachGuide(lat,lng,spd,heading); lastNavPos=[lat,lng]; return; }
+  routeGuide(lat,lng,spd,heading);
+  lastNavPos=[lat,lng];
+}
+function routeGuide(lat,lng,spd,heading){
   // punctul-țintă de pe traseu, puțin în față
   var idx=nearestIdx(lat,lng), ti=idx;
   while(ti<navRoute.length-1 && haversine(lat,lng,navRoute[ti][0],navRoute[ti][1])<25) ti++;
@@ -579,7 +671,6 @@ function navPos(p){
     if(nextEl) nextEl.textContent="· "+spd+" km/h";
     if(arrow) arrow.style.opacity="1";
   }
-  lastNavPos=[lat,lng];
 }
 
 // ---- Party (condus împreună, poziții live) ----
