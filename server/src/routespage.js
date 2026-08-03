@@ -146,6 +146,12 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
     border-radius:22px;padding:11px 18px;font-weight:700;font-family:"Rajdhani",sans-serif;font-size:14.5px;
     letter-spacing:.02em;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.55)}
   #recenterBtn:active{transform:translateX(-50%) scale(.96)}
+  #clearBtn{position:absolute;left:12px;top:calc(12px + env(safe-area-inset-top));z-index:701;display:none;
+    align-items:center;gap:6px;background:rgba(10,15,13,.92);border:1px solid var(--pink);color:var(--pink);
+    border-radius:12px;padding:9px 13px;font-weight:700;font-family:"Rajdhani",sans-serif;font-size:13.5px;cursor:pointer;
+    box-shadow:0 4px 14px rgba(0,0,0,.5)}
+  #clearBtn:active{transform:scale(.95)}
+  body.nav-on #clearBtn{display:none!important}
   #navExit{position:absolute;left:12px;top:calc(12px + env(safe-area-inset-top));z-index:701;display:none;
     align-items:center;gap:6px;background:rgba(10,15,13,.9);border:1px solid var(--line2);color:var(--t1);
     border-radius:12px;padding:10px 13px;font-weight:600;font-family:"Rajdhani",system-ui,sans-serif;cursor:pointer}
@@ -178,6 +184,7 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
   </div>
   <button id="navExit" onclick="exitNav()"><span data-ic="x"></span> Ieși</button>
   <button id="recenterBtn" onclick="recenterNav()"><span data-ic="nav" data-sz="16"></span> Recentrează</button>
+  <button id="clearBtn" onclick="clearRouteView()"><span data-ic="x" data-sz="15"></span> Anulează</button>
   <button id="styleBtn" onclick="cycleStyle()" title="Stil hartă">🗺️</button>
   <button id="locBtn" onclick="locateMe()" title="Unde sunt">📍</button>
 </div>
@@ -515,7 +522,14 @@ async function viewRoute(id,elm){
     L.polyline(pts,{color:"#8bf9ff",weight:5,opacity:.95,className:"glowline"}).addTo(viewLayer);
     addFlags(viewLayer,pts);
     map.fitBounds(L.polyline(pts).getBounds().pad(0.25));
+    var cb=document.getElementById("clearBtn"); if(cb) cb.style.display="inline-flex";
   }catch(e){ toast("Eroare la deschidere."); }
+}
+function clearRouteView(){
+  if(viewLayer){ map.removeLayer(viewLayer); viewLayer=null; }
+  selRoute=null; renderList();
+  var cb=document.getElementById("clearBtn"); if(cb) cb.style.display="none";
+  toast("Traseu scos de pe hartă.");
 }
 async function togglePublic(id,pub){
   try{ var r=await fetch(API+"/api/my/routes/"+id,{method:"POST",headers:Object.assign({"Content-Type":"application/json"},hdr()),body:JSON.stringify({public:!!pub})});
@@ -523,7 +537,7 @@ async function togglePublic(id,pub){
 }
 async function delRoute(id){
   if(!confirm("Ștergi acest traseu?")) return;
-  try{ var r=await fetch(API+"/api/my/routes/"+id,{method:"DELETE",headers:hdr()}); if(r.ok){ toast("Șters."); if(viewLayer){map.removeLayer(viewLayer);viewLayer=null;} loadList(); } else toast("Eroare."); }catch(e){ toast("Eroare de rețea."); }
+  try{ var r=await fetch(API+"/api/my/routes/"+id,{method:"DELETE",headers:hdr()}); if(r.ok){ toast("Șters."); if(viewLayer){map.removeLayer(viewLayer);viewLayer=null;} var cb=document.getElementById("clearBtn"); if(cb) cb.style.display="none"; loadList(); } else toast("Eroare."); }catch(e){ toast("Eroare de rețea."); }
 }
 
 // ---- mod „Condu" (navigație pe un traseu salvat) ----
@@ -585,6 +599,7 @@ function exitNav(){
   if(approachLine){ map.removeLayer(approachLine); approachLine=null; }
   if(navWatch!=null){ navigator.geolocation.clearWatch(navWatch); navWatch=null; }
   setTimeout(function(){ if(map) map.invalidateSize(); },120);
+  var cb=document.getElementById("clearBtn"); if(cb) cb.style.display = viewLayer?"inline-flex":"none";
 }
 // ---- ghidare până la START (OSRM) ----
 function dirTxt(mod){ if(mod&&mod.indexOf("left")>=0) return "stânga"; if(mod&&mod.indexOf("right")>=0) return "dreapta"; return "înainte"; }
