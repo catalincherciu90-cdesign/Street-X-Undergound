@@ -260,6 +260,30 @@ export default {
         });
       }
 
+      // Proxy pentru dalele hărții — WebView-ul nu mai depinde de servere externe
+      // (unele rețele/telefoane blochează CDN-urile de hartă). Totul via origin-ul nostru.
+      const tm = path.match(/^\/tiles\/(\d+)\/(\d+)\/(\d+)\.png$/);
+      if (tm && request.method === "GET") {
+        const z = tm[1], x = tm[2], y = tm[3];
+        const upstream = "https://a.basemaps.cartocdn.com/dark_all/" + z + "/" + x + "/" + y + ".png";
+        try {
+          const resp = await fetch(upstream, {
+            headers: { "User-Agent": "StreetXUnderground/1.0 (+https://street-x-undergound.workers.dev)" },
+            cf: { cacheEverything: true, cacheTtl: 604800 },
+          });
+          if (!resp.ok) return new Response("", { status: 502, headers: CORS });
+          return new Response(resp.body, {
+            headers: {
+              "Content-Type": "image/png",
+              "Cache-Control": "public, max-age=604800",
+              ...CORS,
+            },
+          });
+        } catch (e) {
+          return new Response("", { status: 502, headers: CORS });
+        }
+      }
+
       // Logo-ul brandului (public). Dacă nu e încărcat, cade pe /logo.svg (implicit).
       if (path === "/brand/logo") {
         if (env.DOCS) {

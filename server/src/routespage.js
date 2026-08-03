@@ -223,7 +223,7 @@ function mapMsg(msg,color){
 function clearMapMsg(){ var d=document.getElementById("mapMsg"); if(d) d.remove(); }
 function addBase(){
   var tilesOk=false;
-  var layer=L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"});
+  var layer=L.tileLayer("/tiles/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap © CARTO"});
   layer.on("tileload",function(){ if(!tilesOk){ tilesOk=true; clearMapMsg(); } });
   layer.on("tileerror",function(){ if(!tilesOk) mapMsg("Nu pot încărca harta (rețea/telefon blochează tile.openstreetmap.org).","#ff5b60"); });
   layer.addTo(map);
