@@ -770,9 +770,13 @@ async function loadParty(){
       var wasNull=!party; party=d;
       if(wasNull && d.route_id) drawPartyRoute();
       startPartyPolling();
-    } else { party=null; stopPartyPolling(); }
+    } else { party=null; stopPartyPolling(); clearPartyMap(); }
     if(tab==="party") renderParty();
   }catch(e){}
+}
+function clearPartyMap(){
+  Object.keys(partyMarkers).forEach(function(k){ if(map) map.removeLayer(partyMarkers[k]); }); partyMarkers={};
+  if(partyRouteLayer && map){ map.removeLayer(partyRouteLayer); partyRouteLayer=null; }
 }
 async function partyTick(){
   if(!party) return;
@@ -810,8 +814,7 @@ async function leaveParty(){
 }
 function leavePartyLocal(){
   party=null; stopPartyPolling();
-  Object.keys(partyMarkers).forEach(function(k){ if(map) map.removeLayer(partyMarkers[k]); }); partyMarkers={};
-  if(partyRouteLayer && map){ map.removeLayer(partyRouteLayer); partyRouteLayer=null; }
+  clearPartyMap();
   if(tab==="party") renderParty();
   toast("Ai ieșit din party.");
 }

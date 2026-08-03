@@ -629,7 +629,15 @@ export default {
           const mem = await env.DB.prepare("SELECT party_id FROM party_members WHERE device_id=?").bind(dev.id).first();
           if (!mem) return json({ in_party: false });
           const party = await env.DB.prepare("SELECT * FROM parties WHERE id=?").bind(mem.party_id).first();
-          if (!party) return json({ in_party: false });
+          if (!party) { await env.DB.prepare("DELETE FROM party_members WHERE device_id=?").bind(dev.id).run(); return json({ in_party: false }); }
+          // Expiră party-urile inactive (curse vechi lăsate deschise) — 4h fără activitate
+          const act = await env.DB.prepare("SELECT MAX(last_at) AS m FROM party_members WHERE party_id=?").bind(party.id).first();
+          const lastAct = (act && act.m) ? act.m : party.created_at;
+          if (Date.now() - lastAct > 4 * 3600 * 1000) {
+            await env.DB.prepare("DELETE FROM party_members WHERE party_id=?").bind(party.id).run();
+            await env.DB.prepare("DELETE FROM parties WHERE id=?").bind(party.id).run();
+            return json({ in_party: false });
+          }
           const rows = await env.DB.prepare(
             "SELECT device_id, name, color, last_lat, last_lng, last_at FROM party_members WHERE party_id=? ORDER BY id"
           ).bind(party.id).all();
