@@ -97,6 +97,23 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
 
   .toast{position:fixed;bottom:110px;left:50%;transform:translateX(-50%);background:var(--s3);border:1px solid var(--line2);border-radius:12px;padding:11px 18px;font-size:14px;opacity:0;transition:.2s;z-index:2500;box-shadow:0 8px 24px rgba(0,0,0,.5)}
   .toast.show{opacity:1}
+  /* ---- mod „Condu" (busolă + hartă GPS) ---- */
+  body.nav-on .sheet, body.nav-on .tabs{display:none!important}
+  #navHud{position:absolute;left:0;right:0;top:12px;z-index:700;display:none;flex-direction:column;align-items:center;pointer-events:none}
+  body.nav-on #navHud{display:flex}
+  .compass{width:98px;height:98px;border-radius:50%;
+    background:radial-gradient(circle at 50% 42%, rgba(18,26,22,.96), rgba(10,15,13,.96));
+    border:2px solid rgba(40,224,255,.55);box-shadow:0 0 24px rgba(40,224,255,.4),inset 0 0 18px rgba(40,224,255,.16);
+    display:grid;place-items:center}
+  .compass .arrow{transition:transform .2s ease-out;filter:drop-shadow(0 0 9px rgba(40,224,255,.95))}
+  .navinfo{margin-top:9px;background:rgba(10,15,13,.85);border:1px solid var(--line2);border-radius:12px;
+    padding:6px 14px;font-family:var(--mono);font-size:14px;color:var(--t1)}
+  .navinfo b{color:var(--cyan)}
+  .navinfo b.arrived{color:var(--acc)}
+  #navExit{position:absolute;left:12px;top:calc(12px + env(safe-area-inset-top));z-index:701;display:none;
+    align-items:center;gap:6px;background:rgba(10,15,13,.9);border:1px solid var(--line2);color:var(--t1);
+    border-radius:12px;padding:10px 13px;font-weight:600;font-family:"Rajdhani",system-ui,sans-serif;cursor:pointer}
+  body.nav-on #navExit{display:inline-flex}
   @media (prefers-reduced-motion:reduce){*{animation:none!important}}
 </style>
 </head>
@@ -114,6 +131,16 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
     <div class="stat"><b id="stTime">0:00</b><span>timp</span></div>
     <div class="stat"><b id="stSpd">0</b><span>km/h</span></div>
   </div>
+  <!-- HUD navigație (mod Condu): busolă sus-centru + info -->
+  <div id="navHud">
+    <div class="compass">
+      <svg class="arrow" id="navArrow" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#eafcff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="6 14 12 7 18 14"/><polyline points="6 19 12 12 18 19"/>
+      </svg>
+    </div>
+    <div class="navinfo"><b id="navRemain">—</b> <span id="navNext"></span></div>
+  </div>
+  <button id="navExit" onclick="exitNav()"><span data-ic="x"></span> Ieși</button>
 </div>
 
 <!-- sheet ÎNREGISTRARE -->
@@ -166,6 +193,8 @@ const ICP={
   refresh:'<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>',
   rec:'<circle cx="12" cy="12" r="7"/>',
   route:'<circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M9 19h6a4 4 0 0 0 0-8H9a4 4 0 0 1 0-8h6"/>',
+  nav:'<polygon points="3 11 22 2 13 21 11 13 3 11"/>',
+  x:'<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
   globe:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18z"/>',
   trash:'<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
   eye:'<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/>',
@@ -290,7 +319,8 @@ function routeItemHtml(rt,mine){
     +'<div class="rmeta">'+meta+'</div>'
     +(mine?'':'<div class="rowner">de la '+esc(rt.owner_name||"—")+'</div>')
     +'<div class="racts" onclick="event.stopPropagation()">'
-    +'<button class="rbtn cyan" onclick="viewRoute('+rt.id+')">'+ic("eye",14)+' Vezi</button>';
+    +'<button class="rbtn cyan" onclick="viewRoute('+rt.id+')">'+ic("eye",14)+' Vezi</button>'
+    +'<button class="rbtn" onclick="startNav('+rt.id+')">'+ic("nav",14)+' Condu</button>';
   if(mine){
     h+='<button class="rbtn" onclick="togglePublic('+rt.id+','+(rt.is_public?0:1)+')">'+ic(rt.is_public?"lock":"unlock",14)+(rt.is_public?' Fă privat':' Fă public')+'</button>'
       +'<button class="rbtn pink" onclick="delRoute('+rt.id+')">'+ic("trash",14)+' Șterge</button>';
@@ -334,6 +364,79 @@ async function togglePublic(id,pub){
 async function delRoute(id){
   if(!confirm("Ștergi acest traseu?")) return;
   try{ var r=await fetch(API+"/api/my/routes/"+id,{method:"DELETE",headers:hdr()}); if(r.ok){ toast("Șters."); if(viewLayer){map.removeLayer(viewLayer);viewLayer=null;} loadList(); } else toast("Eroare."); }catch(e){ toast("Eroare de rețea."); }
+}
+
+// ---- mod „Condu" (navigație pe un traseu salvat) ----
+let navOn=false, navRoute=[], navWatch=null, lastNavPos=null;
+function bearing(a,b,c,d){
+  var p=Math.PI/180, y=Math.sin((d-b)*p)*Math.cos(c*p),
+      x=Math.cos(a*p)*Math.sin(c*p)-Math.sin(a*p)*Math.cos(c*p)*Math.cos((d-b)*p);
+  return (Math.atan2(y,x)*180/Math.PI+360)%360;
+}
+function nearestIdx(lat,lng){
+  var bi=0,bd=Infinity;
+  for(var i=0;i<navRoute.length;i++){ var dd=haversine(lat,lng,navRoute[i][0],navRoute[i][1]); if(dd<bd){bd=dd;bi=i;} }
+  return bi;
+}
+async function startNav(id){
+  try{
+    var r=await fetch(API+"/api/my/routes/"+id,{headers:hdr()});
+    var d=await r.json();
+    if(!r.ok||!d.geometry||d.geometry.length<2){ toast(d.error||"Traseu indisponibil."); return; }
+    navRoute=d.geometry; lastNavPos=null; navOn=true;
+    if(viewLayer){map.removeLayer(viewLayer);viewLayer=null;}
+    viewLayer=L.layerGroup().addTo(map);
+    L.polyline(navRoute,{color:"#8bf9ff",weight:5,opacity:.95,className:"glowline"}).addTo(viewLayer);
+    L.circleMarker(navRoute[0],{radius:6,color:"#22e08a",fillColor:"#22e08a",fillOpacity:1}).addTo(viewLayer);
+    L.circleMarker(navRoute[navRoute.length-1],{radius:7,color:"#ff2d95",fillColor:"#ff2d95",fillOpacity:1}).bindPopup("Final").addTo(viewLayer);
+    document.body.classList.add("nav-on");
+    var arrow=document.getElementById("navArrow"); if(arrow) arrow.style.opacity="1";
+    document.getElementById("navRemain").textContent="Pornește GPS-ul…";
+    document.getElementById("navNext").textContent="";
+    setTimeout(function(){ if(map){ map.invalidateSize(); map.fitBounds(L.polyline(navRoute).getBounds().pad(0.2)); } },120);
+    if(!navigator.geolocation){ toast("GPS indisponibil pe acest dispozitiv."); return; }
+    navWatch=navigator.geolocation.watchPosition(navPos,function(){ toast("Nu pot citi GPS-ul."); },{enableHighAccuracy:true,maximumAge:1000,timeout:15000});
+  }catch(e){ toast("Eroare la pornirea navigației."); }
+}
+function exitNav(){
+  navOn=false;
+  document.body.classList.remove("nav-on");
+  if(navWatch!=null){ navigator.geolocation.clearWatch(navWatch); navWatch=null; }
+  setTimeout(function(){ if(map) map.invalidateSize(); },120);
+}
+function navPos(p){
+  if(!navOn||!navRoute.length) return;
+  var lat=p.coords.latitude, lng=p.coords.longitude;
+  var spd=(p.coords.speed!=null&&p.coords.speed>=0)?Math.round(p.coords.speed*3.6):0;
+  if(!meDot){ meDot=L.circleMarker([lat,lng],{radius:8,color:"#fff",weight:3,fillColor:"#22e08a",fillOpacity:1}).addTo(map); }
+  else meDot.setLatLng([lat,lng]);
+  map.setView([lat,lng],Math.max(map.getZoom(),17));
+  // direcția în care e orientat șoferul
+  var heading=null;
+  if(p.coords.heading!=null && !isNaN(p.coords.heading) && spd>=2) heading=p.coords.heading;
+  else if(lastNavPos){ var mv=haversine(lastNavPos[0],lastNavPos[1],lat,lng); if(mv>3) heading=bearing(lastNavPos[0],lastNavPos[1],lat,lng); }
+  // punctul-țintă de pe traseu, puțin în față
+  var idx=nearestIdx(lat,lng), ti=idx;
+  while(ti<navRoute.length-1 && haversine(lat,lng,navRoute[ti][0],navRoute[ti][1])<25) ti++;
+  var tgt=navRoute[ti];
+  var toTgt=bearing(lat,lng,tgt[0],tgt[1]);
+  var rot=(heading!=null)?(toTgt-heading):toTgt;
+  var arrow=document.getElementById("navArrow"); if(arrow) arrow.style.transform="rotate("+rot+"deg)";
+  // distanță rămasă de-a lungul traseului
+  var rem=haversine(lat,lng,navRoute[idx][0],navRoute[idx][1]);
+  for(var i=idx;i<navRoute.length-1;i++) rem+=haversine(navRoute[i][0],navRoute[i][1],navRoute[i+1][0],navRoute[i+1][1]);
+  var end=navRoute[navRoute.length-1], toEnd=haversine(lat,lng,end[0],end[1]);
+  var remEl=document.getElementById("navRemain"), nextEl=document.getElementById("navNext");
+  if(toEnd<20){
+    if(remEl){ remEl.textContent="Ai ajuns"; remEl.className="arrived"; }
+    if(nextEl) nextEl.textContent="";
+    if(arrow) arrow.style.opacity="0.3";
+  } else {
+    if(remEl){ remEl.textContent=(rem<1000?Math.round(rem)+" m":(rem/1000).toFixed(1)+" km")+" rămas"; remEl.className=""; }
+    if(nextEl) nextEl.textContent="· "+spd+" km/h";
+    if(arrow) arrow.style.opacity="1";
+  }
+  lastNavPos=[lat,lng];
 }
 
 if(!key){ document.getElementById("recHint").textContent="Lipsește codul dispozitivului — deschide din aplicație."; }
