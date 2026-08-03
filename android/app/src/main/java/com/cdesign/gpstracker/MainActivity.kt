@@ -125,7 +125,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showProfileDialog() {
-        val name = Prefs.deviceName(this).ifEmpty { "Curier" }
+        val name = Prefs.deviceName(this).ifEmpty { "Șofer" }
         AlertDialog.Builder(this)
             .setTitle(name)
             .setMessage("Conectat ca $name")

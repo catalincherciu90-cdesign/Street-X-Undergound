@@ -7,7 +7,7 @@ export const PAIR_HTML = /* html */ `<!doctype html>
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>DropLy Courier — Conectare</title>
+<title>Street X Underground — Conectare</title>
 <style>
   :root{--bg:#0f1720;--panel:#151f2b;--line:#243447;--txt:#e6edf3;--mut:#8aa0b6;--gold:#d9a441}
   *{box-sizing:border-box}
@@ -36,11 +36,11 @@ export const PAIR_HTML = /* html */ `<!doctype html>
 </head>
 <body>
 <div class="card">
-  <img src="/brand/logo" alt="DropLy Courier" style="display:block;height:104px;max-width:100%;margin:0 auto 12px" />
+  <img src="/brand/logo" alt="Street X Underground" style="display:block;height:104px;max-width:100%;margin:0 auto 12px" />
   <p id="sub">Conectează telefonul la platformă.</p>
 
   <a id="openApp" class="btn primary" href="#">📲 Deschide aplicația și conectează</a>
-  <a class="btn ghost" href="/app.apk" download="gps-tracker.apk">📥 Nu ai aplicația? Descarc-o</a>
+  <a class="btn ghost" href="/app.apk" download="street-x-underground.apk">📥 Nu ai aplicația? Descarc-o</a>
 
   <div id="qr" class="qrbox"></div>
   <p class="small">Dacă butonul nu deschide aplicația: instaleaz-o, apoi apasă „Deschide aplicația". Sau, din alt telefon, scanează codul QR de mai sus.</p>

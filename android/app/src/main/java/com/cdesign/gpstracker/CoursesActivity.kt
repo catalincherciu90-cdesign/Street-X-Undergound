@@ -14,7 +14,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 
 /**
- * Afișează cursele curierului (pagina /driver) într-un WebView.
+ * Deschide o pagină web a aplicației (chat /driver sau trasee /routes) într-un WebView.
  * Suportă atașarea de documente (upload din galerie/fișiere/cameră).
  */
 class CoursesActivity : AppCompatActivity() {

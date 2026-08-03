@@ -1,4 +1,4 @@
-// Pagina curierului — doar chat cu dispecerul.
+// Pagina șoferului — doar chat cu dispecerul.
 // Deschisă în aplicație (WebView) la /driver?key=<device_key>. Auth: device key ca Bearer.
 
 export const DRIVER_HTML = /* html */ `<!doctype html>

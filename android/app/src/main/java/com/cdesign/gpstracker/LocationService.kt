@@ -285,7 +285,7 @@ class LocationService : LifecycleService() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
         return NotificationCompat.Builder(this, CHANNEL)
-            .setContentTitle("DropLy Courier — urmărire activă")
+            .setContentTitle("Street X Underground — urmărire activă")
             .setContentText(text)
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
             .setOngoing(true)

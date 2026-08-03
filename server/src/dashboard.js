@@ -6,7 +6,7 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>DropLy Courier</title>
+<title>Street X Underground</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -263,7 +263,7 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
     <div class="actions">
       <button class="primary" style="width:100%" onclick="doLogin()">Intră</button>
     </div>
-    <a class="dl" href="/app.apk" download="gps-tracker.apk"><span data-ic="download"></span> Descarcă aplicația Android (.apk)</a>
+    <a class="dl" href="/app.apk" download="street-x-underground.apk"><span data-ic="download"></span> Descarcă aplicația Android (.apk)</a>
   </div>
 </div>
 
@@ -271,8 +271,8 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
 <div id="app" class="hidden">
   <!-- TOPBAR global -->
   <div id="topbar">
-    <button id="menuBtn" onclick="toggleSide()" title="Listă curieri"><span data-ic="menu"></span></button>
-    <div class="brand"><img class="logo" src="/brand/logo" alt="DropLy Courier" /></div>
+    <button id="menuBtn" onclick="toggleSide()" title="Listă șoferi"><span data-ic="menu"></span></button>
+    <div class="brand"><img class="logo" src="/brand/logo" alt="Street X Underground" /></div>
     <div class="kpis" id="kpis"></div>
     <div class="tb-sp"></div>
     <div class="tb-actions">
@@ -280,7 +280,7 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
       <button onclick="openRoutes()" title="Trasee"><span data-ic="route"></span> Trasee</button>
       <button onclick="refresh()" title="Reîmprospătează"><span data-ic="refresh"></span></button>
       <button class="opt" onclick="openLogo()" title="Logo"><span data-ic="image"></span></button>
-      <a class="opt" href="/app.apk" download="gps-tracker.apk" title="Descarcă aplicația Android"><button><span data-ic="download"></span></button></a>
+      <a class="opt" href="/app.apk" download="street-x-underground.apk" title="Descarcă aplicația Android"><button><span data-ic="download"></span></button></a>
       <button class="opt" onclick="logout()" title="Ieșire"><span data-ic="logout"></span></button>
     </div>
   </div>
@@ -288,7 +288,7 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
     <div class="sidetools">
       <button onclick="openRoutes()"><span data-ic="route"></span> Trasee</button>
       <button onclick="openLogo()"><span data-ic="image"></span> Logo</button>
-      <a href="/app.apk" download="gps-tracker.apk"><button><span data-ic="download"></span> App</button></a>
+      <a href="/app.apk" download="street-x-underground.apk"><button><span data-ic="download"></span> App</button></a>
       <button onclick="logout()" style="margin-left:auto"><span data-ic="logout"></span> Ieșire</button>
     </div>
     <div class="segbar">
@@ -300,7 +300,7 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
       </div>
       <div class="searchwrap">
         <span class="si" data-ic="search" data-sz="15"></span>
-        <input id="devSearch" placeholder="Caută curier…" oninput="renderList()" autocomplete="off" />
+        <input id="devSearch" placeholder="Caută șofer…" oninput="renderList()" autocomplete="off" />
       </div>
     </div>
     <div id="list"></div>
@@ -315,7 +315,7 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
       <button onclick="clearHistory()">Ascunde</button>
     </div>
     <div class="foot" style="flex-direction:column;align-items:stretch;gap:8px">
-      <label style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em">Distanță curier → adresă</label>
+      <label style="font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em">Distanță șofer → adresă</label>
       <input id="destAddr" placeholder="Adresă destinație (stradă, oraș)" />
       <div style="display:flex;gap:8px">
         <button style="flex:1" onclick="routeToAddress()">Calculează ruta</button>
@@ -334,13 +334,13 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
     <h3>Dispozitiv nou</h3>
     <div class="row"><label>Nume (ex: Telefon Ion)</label><input id="dName" /></div>
     <div class="row"><label>Grup (ex: Șoferi)</label><input id="dGroup" value="General" /></div>
-    <div class="row"><label>Utilizator (login curier)</label><input id="dUser" placeholder="ex: ion" autocapitalize="off" /></div>
-    <div class="row"><label>Parolă</label><input id="dPass" placeholder="parola curierului" /></div>
+    <div class="row"><label>Utilizator (login șofer)</label><input id="dUser" placeholder="ex: ion" autocapitalize="off" /></div>
+    <div class="row"><label>Parolă</label><input id="dPass" placeholder="parola șoferului" /></div>
     <div id="addResult" class="hidden">
-      <p style="color:var(--ok);font-size:13px">✔ Curier creat. Dă-i aceste date de conectare pentru aplicație:</p>
+      <p style="color:var(--ok);font-size:13px">✔ Șofer creat. Dă-i aceste date de conectare pentru aplicație:</p>
       <div class="row"><label>Utilizator</label><div class="key" id="rUser"></div></div>
       <div class="row"><label>Parolă</label><div class="key" id="rPass"></div></div>
-      <p style="color:var(--mut);font-size:12px">În aplicație, curierul introduce utilizatorul și parola de mai sus.</p>
+      <p style="color:var(--mut);font-size:12px">În aplicație, șoferul introduce utilizatorul și parola de mai sus.</p>
     </div>
     <div class="actions">
       <button onclick="closeAdd()">Închide</button>
@@ -353,7 +353,7 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
 <div id="logoModal" class="modal hidden">
   <div class="card">
     <h3><span data-ic="image" data-sz="20"></span> Logo</h3>
-    <p style="color:var(--mut);font-size:13px">Încarcă logo-ul firmei. Apare pe login, în header și în aplicația curierului. Ideal PNG cu fundal transparent.</p>
+    <p style="color:var(--mut);font-size:13px">Încarcă logo-ul firmei. Apare pe login, în header și în aplicația șoferului. Ideal PNG cu fundal transparent.</p>
     <div style="display:flex;justify-content:center;background:#0e1620;border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:12px">
       <img id="lgPreview" style="max-height:90px;max-width:100%;object-fit:contain" />
     </div>
@@ -366,7 +366,7 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
   </div>
 </div>
 
-<!-- MODAL profil curier -->
+<!-- MODAL profil șofer -->
 <div id="profileModal" class="modal hidden">
   <div class="card">
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
@@ -379,7 +379,7 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
   </div>
 </div>
 
-<!-- DRAWER mesaje către curier (peste hartă, nu blochează) -->
+<!-- DRAWER mesaje către șofer (peste hartă, nu blochează) -->
 <div id="msgDrawer" class="drawer hidden">
   <div class="dhead">
     <span class="avwrap" id="msgAv"></span>
@@ -391,18 +391,18 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
   </div>
   <div id="msgList" class="dbody"></div>
   <div class="dfoot">
-    <textarea id="msgText" placeholder="Scrie un mesaj pentru curier…" rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg();}"></textarea>
+    <textarea id="msgText" placeholder="Scrie un mesaj pentru șofer…" rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg();}"></textarea>
     <button class="primary" onclick="sendMsg()" title="Trimite"><span data-ic="send"></span></button>
   </div>
 </div>
 
-<!-- MODAL cont curier (user + parolă) -->
+<!-- MODAL cont șofer (user + parolă) -->
 <div id="credsModal" class="modal hidden">
   <div class="card">
-    <h3 id="crTitle">Cont curier</h3>
-    <p style="color:var(--mut);font-size:13px">Datele cu care curierul se loghează în aplicație.</p>
+    <h3 id="crTitle">Cont șofer</h3>
+    <p style="color:var(--mut);font-size:13px">Datele cu care șoferul se loghează în aplicație.</p>
     <div class="row"><label>Utilizator curent</label><div class="key" id="crUser"></div></div>
-    <div class="row"><label>Poză curier</label>
+    <div class="row"><label>Poză șofer</label>
       <div style="display:flex;align-items:center;gap:12px">
         <img id="crAvatar" style="width:54px;height:54px;border-radius:50%;object-fit:cover;border:2px solid var(--line);background:#0e1620" />
         <label class="qrbtn" style="padding:8px 12px;cursor:pointer"><span data-ic="camera" data-sz="14"></span> Încarcă poză<input type="file" id="crAvatarFile" accept="image/*" style="display:none" onchange="uploadAvatar(this)"></label>
@@ -616,7 +616,7 @@ function renderList(){
   shown.forEach(dv=>{ (groups[dv.group_name]=groups[dv.group_name]||[]).push(dv); });
   let html="";
   if(!devices.length) html='<div style="padding:20px;color:var(--t3);font-size:13px">Niciun dispozitiv încă. Apasă <b>+ Dispozitiv</b>.</div>';
-  else if(!shown.length) html='<div style="padding:20px;color:var(--t3);font-size:13px">Niciun curier pentru acest filtru.</div>';
+  else if(!shown.length) html='<div style="padding:20px;color:var(--t3);font-size:13px">Niciun șofer pentru acest filtru.</div>';
   for(const g of Object.keys(groups).sort()){
     html+='<div class="grp">'+esc(g)+'</div>';
     for(const dv of groups[g]){
@@ -700,19 +700,19 @@ async function loadHistory(){
 }
 function clearHistory(){ if(histLayer){ map.removeLayer(histLayer); histLayer=null; } }
 
-// --- distanță/rută de la curier la o adresă ---
+// --- distanță/rută de la șofer la o adresă ---
 function setRouteInfo(html){ document.getElementById("routeInfo").innerHTML=html; }
 function clearRoute(){ pickMode=false; if(routeLayer){ map.removeLayer(routeLayer); routeLayer=null; } setRouteInfo(""); }
 function currentCourier(){
-  if(!selected){ alert("Selectează întâi curierul din listă."); return null; }
+  if(!selected){ alert("Selectează întâi șoferul din listă."); return null; }
   const dv=devices.find(x=>x.id===selected);
-  if(!dv||dv.last_lat==null||dv.last_lng==null){ alert("Curierul nu are o poziție cunoscută încă."); return null; }
+  if(!dv||dv.last_lat==null||dv.last_lng==null){ alert("Șoferul nu are o poziție cunoscută încă."); return null; }
   return dv;
 }
 function pickOnMap(){
   if(!currentCourier()) return;
   pickMode=true;
-  setRouteInfo("<span style='color:var(--gold)'>Apasă pe hartă unde trebuie să ajungă curierul…</span>");
+  setRouteInfo("<span style='color:var(--gold)'>Apasă pe hartă unde trebuie să ajungă șoferul…</span>");
   if(isMobile()) document.getElementById("app").classList.add("side-hidden");
   setTimeout(function(){ if(map) map.invalidateSize(); },260);
 }
@@ -778,7 +778,7 @@ async function createDevice(){
   const username=document.getElementById("dUser").value.trim();
   const password=document.getElementById("dPass").value.trim();
   if(!name){ alert("Pune un nume."); return; }
-  if(!username||!password){ alert("Pune utilizator și parolă pentru curier."); return; }
+  if(!username||!password){ alert("Pune utilizator și parolă pentru șofer."); return; }
   const r=await fetch(API+"/api/devices",{method:"POST",headers:h(token),body:JSON.stringify({name,group,username,password})});
   const d=await r.json();
   if(d.api_key){
@@ -789,7 +789,7 @@ async function createDevice(){
   } else { alert(d.error||"Eroare"); }
 }
 
-// --- profil curier (comenzi active + km azi) ---
+// --- profil șofer (comenzi active + km azi) ---
 function openProfile(id,ev){
   if(ev) ev.stopPropagation();
   const dv=devices.find(x=>x.id===id); if(!dv) return;
@@ -813,7 +813,7 @@ async function loadProfileStats(id){
   }catch(e){ document.getElementById("pfKm").textContent="—"; }
 }
 
-// --- cont curier (user + parolă) ---
+// --- cont șofer (user + parolă) ---
 let credDevice = null;
 function showCreds(id,ev){
   if(ev) ev.stopPropagation();
@@ -835,7 +835,7 @@ async function uploadAvatar(input){
 }
 function closeCreds(){ document.getElementById("credsModal").classList.add("hidden"); credDevice=null; }
 
-// --- mesaje către curier ---
+// --- mesaje către șofer ---
 let msgDevice=null;
 function openMsg(id,ev){
   if(ev) ev.stopPropagation();
@@ -864,11 +864,11 @@ async function loadMsgs(){
   const d=await r.json();
   const el=document.getElementById("msgList");
   const list=d.messages||[];
-  if(!list.length){ el.innerHTML='<div class="empty">Niciun mesaj încă. Scrie primul mesaj curierului.</div>'; return; }
+  if(!list.length){ el.innerHTML='<div class="empty">Niciun mesaj încă. Scrie primul mesaj șoferului.</div>'; return; }
   el.innerHTML=list.slice().reverse().map(function(m){
     const admin = m.sender!=="driver";
     return '<div class="bub '+(admin?"me":"them")+'">'+esc(m.text)
-      +'<span class="ts">'+(admin?"Tu":"Curier")+' • '+fmtWhen(m.created_at)+'</span></div>';
+      +'<span class="ts">'+(admin?"Tu":"Șofer")+' • '+fmtWhen(m.created_at)+'</span></div>';
   }).join("");
   el.scrollTop=el.scrollHeight;
 }
@@ -879,7 +879,7 @@ async function saveCreds(){
   if(!username||!password){ alert("Completează utilizator și parolă."); return; }
   const r=await fetch(API+"/api/devices/"+credDevice+"/credentials",{method:"POST",headers:h(token),body:JSON.stringify({username,password})});
   const d=await r.json();
-  if(d.ok){ alert("Cont actualizat. Dă curierului noile date de conectare."); closeCreds(); refresh(); }
+  if(d.ok){ alert("Cont actualizat. Dă șoferului noile date de conectare."); closeCreds(); refresh(); }
   else alert(d.error||"Eroare");
 }
 // --- logo brand ---
@@ -1012,7 +1012,7 @@ async function finishDraw(){
 function pairLink(key){ return location.origin + "/pair?key=" + encodeURIComponent(key); }
 function copyText(t){
   if(navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(t).then(function(){ alert("Link copiat! Trimite-l curierului."); },
+    navigator.clipboard.writeText(t).then(function(){ alert("Link copiat! Trimite-l șoferului."); },
       function(){ prompt("Copiază linkul:", t); });
   } else { prompt("Copiază linkul:", t); }
 }

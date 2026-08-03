@@ -88,7 +88,7 @@ async function requireAdmin(req, env) {
   return p && p.role === "admin" ? p : null;
 }
 
-// Autentifică un dispozitiv (curier) după device key din Authorization
+// Autentifică un dispozitiv (șofer) după device key din Authorization
 async function requireDevice(req, env) {
   const key = bearer(req);
   if (!key) return null;
@@ -239,14 +239,14 @@ export default {
         });
       }
 
-      // Pagina de conectare (link primit de curier)
+      // Pagina de conectare (link primit de șofer)
       if (path === "/pair") {
         return new Response(PAIR_HTML, {
           headers: { "Content-Type": "text/html; charset=utf-8" },
         });
       }
 
-      // Pagina curierului (chat) — deschisă în aplicație
+      // Pagina șoferului (chat) — deschisă în aplicație
       if (path === "/driver") {
         return new Response(DRIVER_HTML, {
           headers: { "Content-Type": "text/html; charset=utf-8" },
@@ -274,7 +274,7 @@ export default {
         return Response.redirect(url.origin + "/logo.svg", 302);
       }
 
-      // Poza curierului (public — nu e sensibilă)
+      // Poza șoferului (public — nu e sensibilă)
       const avm = path.match(/^\/avatar\/(\d+)$/);
       if (avm && request.method === "GET") {
         if (!env.DOCS) return new Response("", { status: 404 });
@@ -311,7 +311,7 @@ export default {
         return json({ token });
       }
 
-      // --- Login aplicație curier (user + parolă) -> întoarce device key ---
+      // --- Login aplicație șofer (user + parolă) -> întoarce device key ---
       if (path === "/api/device/login" && request.method === "POST") {
         const b = await request.json().catch(() => ({}));
         const username = (b.username || "").trim();
@@ -361,7 +361,7 @@ export default {
         return json({ ok: true });
       }
 
-      // --- Mesaje pentru curier (auth cu device key) ---
+      // --- Mesaje pentru șofer (auth cu device key) ---
       if (path.startsWith("/api/my/")) {
         const dev = await requireDevice(request, env);
         if (!dev) return json({ error: "device key invalid" }, 401);
@@ -552,7 +552,7 @@ export default {
           return json({ km: Math.round(km * 10) / 10 });
         }
 
-        // POST /api/devices/:id/avatar — încarcă poza curierului
+        // POST /api/devices/:id/avatar — încarcă poza șoferului
         const avUp = path.match(/^\/api\/devices\/(\d+)\/avatar$/);
         if (avUp && request.method === "POST") {
           if (!env.DOCS) return json({ error: "stocare indisponibilă" }, 500);
