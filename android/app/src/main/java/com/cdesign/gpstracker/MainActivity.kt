@@ -71,13 +71,8 @@ class MainActivity : AppCompatActivity() {
 
         b.ivProfile.setOnClickListener { showProfileDialog() }
 
-        b.btnCourses.setOnClickListener {
-            if (Prefs.serverUrl(this).isEmpty() || Prefs.deviceKey(this).isEmpty()) {
-                toast("Conectează-te întâi cu utilizator și parolă.")
-            } else {
-                startActivity(Intent(this, CoursesActivity::class.java))
-            }
-        }
+        b.btnRoutes.setOnClickListener { openWeb("/routes") }
+        b.btnCourses.setOnClickListener { openWeb("/driver") }
 
         updateStatus()
         loadProfile()
@@ -275,6 +270,14 @@ class MainActivity : AppCompatActivity() {
         b.btnToggle.setTextColor(
             if (running) Color.WHITE else Color.parseColor("#08210f")
         )
+    }
+
+    private fun openWeb(path: String) {
+        if (Prefs.serverUrl(this).isEmpty() || Prefs.deviceKey(this).isEmpty()) {
+            toast("Conectează-te întâi cu utilizator și parolă.")
+        } else {
+            startActivity(Intent(this, CoursesActivity::class.java).putExtra("path", path))
+        }
     }
 
     private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_LONG).show()

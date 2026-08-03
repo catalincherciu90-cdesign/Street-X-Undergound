@@ -41,6 +41,8 @@ class CoursesActivity : AppCompatActivity() {
         val url = Prefs.serverUrl(this)
         val key = Prefs.deviceKey(this)
         if (url.isEmpty() || key.isEmpty()) { finish(); return }
+        // Pagina de deschis în WebView (ex. "/driver" chat, "/routes" trasee)
+        val path = intent.getStringExtra("path") ?: "/driver"
 
         web = WebView(this)
         setContentView(web)
@@ -95,7 +97,7 @@ class CoursesActivity : AppCompatActivity() {
                 }
             }
         }
-        web.loadUrl("$url/driver?key=$key")
+        web.loadUrl("$url$path?key=$key")
     }
 
     private fun openExternal(uri: Uri): Boolean {
