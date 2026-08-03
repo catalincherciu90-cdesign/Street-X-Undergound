@@ -21,6 +21,7 @@
 import { DASHBOARD_HTML } from "./dashboard.js";
 import { PAIR_HTML } from "./pairpage.js";
 import { DRIVER_HTML } from "./driverpage.js";
+import { ROUTES_HTML } from "./routespage.js";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -140,6 +141,30 @@ function havKm(la1, lo1, la2, lo2) {
   return 2 * R * Math.asin(Math.sqrt(a));
 }
 
+// Validează geometria unui traseu: array de [lat,lng]. Întoarce {coords, distance_m} sau null.
+function parseRouteGeometry(raw) {
+  let arr = raw;
+  if (typeof raw === "string") {
+    try { arr = JSON.parse(raw); } catch { return null; }
+  }
+  if (!Array.isArray(arr) || arr.length < 2) return null;
+  if (arr.length > 20000) arr = arr.slice(0, 20000);
+  const coords = [];
+  for (const p of arr) {
+    const lat = Array.isArray(p) ? Number(p[0]) : Number(p.lat);
+    const lng = Array.isArray(p) ? Number(p[1]) : Number(p.lng);
+    if (!isFinite(lat) || !isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) continue;
+    coords.push([lat, lng]);
+  }
+  if (coords.length < 2) return null;
+  let dist = 0;
+  for (let i = 1; i < coords.length; i++) {
+    const seg = havKm(coords[i - 1][0], coords[i - 1][1], coords[i][0], coords[i][1]);
+    if (seg < 20) dist += seg; // ignoră salturi GPS mari
+  }
+  return { coords, distance_m: Math.round(dist * 1000) };
+}
+
 // ---------- schema auto (creează tabelele la prima cerere) ----------
 
 let schemaReady = false;
@@ -172,6 +197,18 @@ async function ensureSchema(env) {
     ),
     env.DB.prepare(
       "CREATE INDEX IF NOT EXISTS idx_msg_device ON messages (device_id, created_at)"
+    ),
+    env.DB.prepare(
+      "CREATE TABLE IF NOT EXISTS routes (" +
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, owner_type TEXT NOT NULL, owner_id INTEGER, " +
+        "owner_name TEXT, name TEXT NOT NULL, description TEXT, distance_m REAL, duration_s INTEGER, " +
+        "geometry TEXT NOT NULL, is_public INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL)"
+    ),
+    env.DB.prepare(
+      "CREATE INDEX IF NOT EXISTS idx_routes_owner ON routes (owner_type, owner_id)"
+    ),
+    env.DB.prepare(
+      "CREATE INDEX IF NOT EXISTS idx_routes_public ON routes (is_public, created_at)"
     ),
   ]);
   // Migrare: adaugă user/parolă la tabelul devices dacă lipsesc (ignoră dacă există deja)
@@ -209,9 +246,16 @@ export default {
         });
       }
 
-      // Pagina curierului (cursele lui) — deschisă în aplicație
+      // Pagina curierului (chat) — deschisă în aplicație
       if (path === "/driver") {
         return new Response(DRIVER_HTML, {
+          headers: { "Content-Type": "text/html; charset=utf-8" },
+        });
+      }
+
+      // Pagina „Trasee" a utilizatorului — deschisă în aplicație
+      if (path === "/routes") {
+        return new Response(ROUTES_HTML, {
           headers: { "Content-Type": "text/html; charset=utf-8" },
         });
       }
@@ -341,6 +385,78 @@ export default {
             )
               .bind(dev.id, text.slice(0, 1000), Date.now(), "driver")
               .run();
+            return json({ ok: true });
+          }
+        }
+
+        // --- Trasee ale utilizatorului + biblioteca publică ---
+        if (path === "/api/my/routes") {
+          // GET — traseele mele + cele publice (ale altora)
+          if (request.method === "GET") {
+            const mine = await env.DB.prepare(
+              "SELECT id, name, description, distance_m, duration_s, is_public, owner_name, created_at " +
+              "FROM routes WHERE owner_type='device' AND owner_id=? ORDER BY created_at DESC"
+            ).bind(dev.id).all();
+            const lib = await env.DB.prepare(
+              "SELECT id, name, description, distance_m, duration_s, is_public, owner_name, created_at " +
+              "FROM routes WHERE is_public=1 AND NOT (owner_type='device' AND owner_id=?) ORDER BY created_at DESC LIMIT 300"
+            ).bind(dev.id).all();
+            return json({ mine: mine.results || [], library: lib.results || [] });
+          }
+          // POST — creează traseu (înregistrat de utilizator)
+          if (request.method === "POST") {
+            const b = await request.json().catch(() => ({}));
+            const name = (b.name || "").trim();
+            if (!name) return json({ error: "nume obligatoriu" }, 400);
+            const geo = parseRouteGeometry(b.geometry);
+            if (!geo) return json({ error: "traseu invalid (prea puține puncte)" }, 400);
+            const dur = Number(b.duration_s);
+            const res = await env.DB.prepare(
+              "INSERT INTO routes (owner_type, owner_id, owner_name, name, description, distance_m, duration_s, geometry, is_public, created_at) " +
+              "VALUES ('device',?,?,?,?,?,?,?,?,?)"
+            ).bind(
+              dev.id, dev.name, name.slice(0, 120),
+              (b.description || "").trim().slice(0, 500) || null,
+              geo.distance_m, Number.isFinite(dur) ? Math.round(dur) : null,
+              JSON.stringify(geo.coords), b.public ? 1 : 0, Date.now()
+            ).run();
+            return json({ id: res.meta.last_row_id, distance_m: geo.distance_m });
+          }
+        }
+
+        const rm = path.match(/^\/api\/my\/routes\/(\d+)$/);
+        if (rm) {
+          const rid = Number(rm[1]);
+          const route = await env.DB.prepare("SELECT * FROM routes WHERE id=?").bind(rid).first();
+          if (!route) return json({ error: "traseu inexistent" }, 404);
+          const isOwner = route.owner_type === "device" && route.owner_id === dev.id;
+          // GET — vezi traseul (dacă e al meu sau public)
+          if (request.method === "GET") {
+            if (!isOwner && !route.is_public) return json({ error: "neautorizat" }, 403);
+            let coords = [];
+            try { coords = JSON.parse(route.geometry); } catch {}
+            return json({
+              id: route.id, name: route.name, description: route.description,
+              distance_m: route.distance_m, duration_s: route.duration_s,
+              is_public: route.is_public, owner_name: route.owner_name,
+              created_at: route.created_at, mine: isOwner, geometry: coords,
+            });
+          }
+          // POST — editează (nume/descriere/public) — doar proprietarul
+          if (request.method === "POST") {
+            if (!isOwner) return json({ error: "neautorizat" }, 403);
+            const b = await request.json().catch(() => ({}));
+            const name = (b.name != null ? String(b.name).trim() : route.name) || route.name;
+            const desc = b.description != null ? String(b.description).trim().slice(0, 500) : route.description;
+            const pub = b.public != null ? (b.public ? 1 : 0) : route.is_public;
+            await env.DB.prepare("UPDATE routes SET name=?, description=?, is_public=? WHERE id=?")
+              .bind(name.slice(0, 120), desc || null, pub, rid).run();
+            return json({ ok: true });
+          }
+          // DELETE — șterge — doar proprietarul
+          if (request.method === "DELETE") {
+            if (!isOwner) return json({ error: "neautorizat" }, 403);
+            await env.DB.prepare("DELETE FROM routes WHERE id=?").bind(rid).run();
             return json({ ok: true });
           }
         }
@@ -526,6 +642,74 @@ export default {
           if (env.DOCS) await env.DOCS.delete("brand:logo");
           return json({ ok: true });
         }
+      }
+
+      // --- Trasee (admin: vede/gestionează toate) ---
+      if (path.startsWith("/api/routes")) {
+        const admin = await requireAdmin(request, env);
+        if (!admin) return json({ error: "neautorizat" }, 401);
+
+        // GET /api/routes — toate traseele
+        if (path === "/api/routes" && request.method === "GET") {
+          const rows = await env.DB.prepare(
+            "SELECT id, owner_type, owner_id, owner_name, name, description, distance_m, duration_s, is_public, created_at " +
+            "FROM routes ORDER BY created_at DESC LIMIT 1000"
+          ).all();
+          return json({ routes: rows.results || [] });
+        }
+
+        // POST /api/routes — admin creează traseu (desenat pe hartă)
+        if (path === "/api/routes" && request.method === "POST") {
+          const b = await request.json().catch(() => ({}));
+          const name = (b.name || "").trim();
+          if (!name) return json({ error: "nume obligatoriu" }, 400);
+          const geo = parseRouteGeometry(b.geometry);
+          if (!geo) return json({ error: "traseu invalid (prea puține puncte)" }, 400);
+          const res = await env.DB.prepare(
+            "INSERT INTO routes (owner_type, owner_id, owner_name, name, description, distance_m, duration_s, geometry, is_public, created_at) " +
+            "VALUES ('admin',NULL,?,?,?,?,?,?,?,?)"
+          ).bind(
+            env.ADMIN_USER || "Admin", name.slice(0, 120),
+            (b.description || "").trim().slice(0, 500) || null,
+            geo.distance_m, null, JSON.stringify(geo.coords), b.public ? 1 : 0, Date.now()
+          ).run();
+          return json({ id: res.meta.last_row_id, distance_m: geo.distance_m });
+        }
+
+        // /api/routes/:id
+        const arm = path.match(/^\/api\/routes\/(\d+)$/);
+        if (arm) {
+          const rid = Number(arm[1]);
+          if (request.method === "GET") {
+            const route = await env.DB.prepare("SELECT * FROM routes WHERE id=?").bind(rid).first();
+            if (!route) return json({ error: "traseu inexistent" }, 404);
+            let coords = [];
+            try { coords = JSON.parse(route.geometry); } catch {}
+            return json({
+              id: route.id, name: route.name, description: route.description,
+              distance_m: route.distance_m, duration_s: route.duration_s,
+              is_public: route.is_public, owner_type: route.owner_type,
+              owner_name: route.owner_name, created_at: route.created_at, geometry: coords,
+            });
+          }
+          if (request.method === "POST") {
+            const route = await env.DB.prepare("SELECT id, name, description, is_public FROM routes WHERE id=?").bind(rid).first();
+            if (!route) return json({ error: "traseu inexistent" }, 404);
+            const b = await request.json().catch(() => ({}));
+            const name = (b.name != null ? String(b.name).trim() : route.name) || route.name;
+            const desc = b.description != null ? String(b.description).trim().slice(0, 500) : route.description;
+            const pub = b.public != null ? (b.public ? 1 : 0) : route.is_public;
+            await env.DB.prepare("UPDATE routes SET name=?, description=?, is_public=? WHERE id=?")
+              .bind(name.slice(0, 120), desc || null, pub, rid).run();
+            return json({ ok: true });
+          }
+          if (request.method === "DELETE") {
+            await env.DB.prepare("DELETE FROM routes WHERE id=?").bind(rid).run();
+            return json({ ok: true });
+          }
+        }
+
+        return json({ error: "rută necunoscută" }, 404);
       }
 
       return json({ error: "not found" }, 404);

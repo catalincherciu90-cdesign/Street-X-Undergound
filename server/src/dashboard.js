@@ -240,6 +240,10 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
   #login .card .ttl2{font-size:11px;text-align:center;color:var(--t3);letter-spacing:.16em;text-transform:uppercase;margin:0 0 14px;font-family:"Rajdhani",system-ui,sans-serif}
   .dl{border-color:rgba(255,45,149,.35);color:var(--neon-pink)}
   .dl:hover{border-color:var(--neon-pink);background:rgba(255,45,149,.08);box-shadow:0 0 14px rgba(255,45,149,.2)}
+  /* badge trasee public/privat */
+  .rbadge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:2px 8px;border-radius:999px;font-family:"Rajdhani",system-ui,sans-serif}
+  .rbadge.pub{background:rgba(34,224,138,.14);color:var(--gold)}
+  .rbadge.priv{background:rgba(143,168,154,.12);color:var(--t3)}
   @media (prefers-reduced-motion:reduce){body::before{display:none}}
 </style>
 </head>
@@ -273,6 +277,7 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
     <div class="tb-sp"></div>
     <div class="tb-actions">
       <button class="primary" onclick="openAdd()"><span data-ic="plus"></span> Dispozitiv</button>
+      <button onclick="openRoutes()" title="Trasee"><span data-ic="route"></span> Trasee</button>
       <button onclick="refresh()" title="Reîmprospătează"><span data-ic="refresh"></span></button>
       <button class="opt" onclick="openLogo()" title="Logo"><span data-ic="image"></span></button>
       <a class="opt" href="/app.apk" download="gps-tracker.apk" title="Descarcă aplicația Android"><button><span data-ic="download"></span></button></a>
@@ -281,6 +286,7 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
   </div>
   <div id="side">
     <div class="sidetools">
+      <button onclick="openRoutes()"><span data-ic="route"></span> Trasee</button>
       <button onclick="openLogo()"><span data-ic="image"></span> Logo</button>
       <a href="/app.apk" download="gps-tracker.apk"><button><span data-ic="download"></span> App</button></a>
       <button onclick="logout()" style="margin-left:auto"><span data-ic="logout"></span> Ieșire</button>
@@ -412,6 +418,25 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
   </div>
 </div>
 
+<!-- MODAL trasee (admin) -->
+<div id="routesModal" class="modal hidden">
+  <div class="card" style="width:560px;max-width:94vw;max-height:90vh;overflow:auto">
+    <h3><span data-ic="route" data-sz="20"></span> Trasee</h3>
+    <p style="color:var(--mut);font-size:13px;margin:0 0 12px">Traseele înregistrate de utilizatori + cele desenate de tine. Poți face public/privat, vedea pe hartă sau șterge.</p>
+    <button class="primary" style="width:100%;margin-bottom:12px" onclick="startDraw()"><span data-ic="plus"></span> Desenează un traseu nou</button>
+    <div id="routesBody">Se încarcă…</div>
+    <div class="actions"><button onclick="closeRoutes()">Închide</button></div>
+  </div>
+</div>
+
+<!-- bară plutitoare pentru desenarea traseului -->
+<div id="drawBar" class="hidden" style="position:fixed;left:50%;transform:translateX(-50%);bottom:22px;z-index:1800;background:var(--s3);border:1px solid var(--line2);border-radius:14px;padding:10px 12px;display:flex;align-items:center;gap:10px;box-shadow:0 12px 34px rgba(0,0,0,.55)">
+  <span style="font-size:13px;color:var(--mut)">Apasă pe hartă pentru puncte · <b id="drawCount" style="color:var(--gold)">0</b></span>
+  <button onclick="undoDraw()" title="Șterge ultimul punct"><span data-ic="x"></span></button>
+  <button class="primary" onclick="finishDraw()"><span data-ic="check"></span> Salvează</button>
+  <button onclick="cancelDraw()">Renunță</button>
+</div>
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.0.22/leaflet-maplibre-gl.js"></script>
@@ -439,6 +464,9 @@ const ICP={
   camera:'<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
   pin:'<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>',
   nav:'<polygon points="3 11 22 2 13 21 11 13 3 11"/>',
+  route:'<circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M9 19h6a4 4 0 0 0 0-8H9a4 4 0 0 1 0-8h6"/>',
+  globe:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18z"/>',
+  check:'<polyline points="20 6 9 17 4 12"/>',
   x:'<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
   file:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
   paperclip:'<path d="M21.44 11.05l-9.19 9.19a5 5 0 0 1-7.07-7.07l9.19-9.19a3 3 0 0 1 4.24 4.24l-9.2 9.19a1 1 0 0 1-1.41-1.41l8.49-8.49"/>',
@@ -529,7 +557,10 @@ function showApp(){
     L.control.zoom({position:"bottomright"}).addTo(map);
     window.addEventListener("resize", function(){ if(map) map.invalidateSize(); });
     setTimeout(function(){ map.invalidateSize(); }, 300);
-    map.on("click", function(e){ if(pickMode){ pickMode=false; routeToPoint(e.latlng.lat, e.latlng.lng, null); } });
+    map.on("click", function(e){
+      if(drawMode){ addWaypoint(e.latlng); return; }
+      if(pickMode){ pickMode=false; routeToPoint(e.latlng.lat, e.latlng.lng, null); }
+    });
   }
   refresh();
   if(timer) clearInterval(timer);
@@ -875,6 +906,108 @@ async function resetLogo(){
   document.getElementById("lgPreview").src="/brand/logo?t="+Date.now();
   document.getElementById("lgStatus").textContent="Revenit la logo implicit.";
   bustLogos();
+}
+// --- trasee (admin) ---
+let routeViewLayer=null, drawMode=false, drawPts=[], drawMarkers=[], drawLine=null;
+function openRoutes(){ document.getElementById("routesModal").classList.remove("hidden"); loadRoutes(); }
+function closeRoutes(){ document.getElementById("routesModal").classList.add("hidden"); }
+async function loadRoutes(){
+  document.getElementById("routesBody").innerHTML="Se încarcă…";
+  try{
+    const r=await fetch(API+"/api/routes",{headers:h(token)});
+    const d=await r.json();
+    renderRoutes(d.routes||[]);
+  }catch(e){ document.getElementById("routesBody").innerHTML='<div style="color:#f85149">Eroare la încărcare.</div>'; }
+}
+function fmtKm(m){ return ((m||0)/1000).toFixed(1); }
+function renderRoutes(list){
+  const el=document.getElementById("routesBody");
+  if(!list.length){ el.innerHTML='<div style="color:var(--mut);font-size:13px;text-align:center;padding:14px">Niciun traseu încă. Desenează unul sau așteaptă înregistrări de la utilizatori.</div>'; return; }
+  el.innerHTML=list.map(function(rt){
+    const pub=rt.is_public?'<span class="rbadge pub">Public</span>':'<span class="rbadge priv">Privat</span>';
+    const who=rt.owner_type==="admin"?"Admin":esc(rt.owner_name||"utilizator");
+    return '<div class="citem"><div class="ch"><span class="cnum" style="flex:1">'+esc(rt.name)+'</span>'+pub+'</div>'
+      +'<div class="cfield" style="font-family:ui-monospace,monospace">'+fmtKm(rt.distance_m)+' km'+(rt.duration_s?' · '+Math.round(rt.duration_s/60)+' min':'')+' · de la '+who+'</div>'
+      +'<div class="cactions">'
+        +'<button class="qrbtn" onclick="viewRouteAdmin('+rt.id+')">'+ic("nav",14)+'Vezi</button>'
+        +'<button class="qrbtn" onclick="toggleRoutePublic('+rt.id+','+(rt.is_public?0:1)+')">'+ic(rt.is_public?"key":"globe",14)+(rt.is_public?'Fă privat':'Fă public')+'</button>'
+        +'<button class="qrbtn" onclick="deleteRouteAdmin('+rt.id+')">'+ic("trash",14)+'Șterge</button>'
+      +'</div></div>';
+  }).join("");
+}
+function clearRouteView(){ if(routeViewLayer){ map.removeLayer(routeViewLayer); routeViewLayer=null; } }
+async function viewRouteAdmin(id){
+  try{
+    const r=await fetch(API+"/api/routes/"+id,{headers:h(token)});
+    const d=await r.json();
+    if(!r.ok||!d.geometry||!d.geometry.length){ alert(d.error||"Traseu indisponibil."); return; }
+    clearRouteView();
+    const pts=d.geometry;
+    routeViewLayer=L.layerGroup().addTo(map);
+    L.polyline(pts,{color:"#8bf9ff",weight:5,opacity:.95,className:"glowline"}).addTo(routeViewLayer);
+    L.circleMarker(pts[0],{radius:7,color:"#22e08a",fillColor:"#22e08a",fillOpacity:1}).bindPopup("Start — "+esc(d.name)).addTo(routeViewLayer);
+    L.circleMarker(pts[pts.length-1],{radius:7,color:"#ff2d95",fillColor:"#ff2d95",fillOpacity:1}).bindPopup("Final").addTo(routeViewLayer);
+    closeRoutes();
+    if(isMobile()) document.getElementById("app").classList.add("side-hidden");
+    setTimeout(function(){ map.invalidateSize(); map.fitBounds(L.polyline(pts).getBounds().pad(0.25)); },260);
+  }catch(e){ alert("Eroare la deschidere."); }
+}
+async function toggleRoutePublic(id,pub){
+  try{ const r=await fetch(API+"/api/routes/"+id,{method:"POST",headers:h(token),body:JSON.stringify({public:!!pub})});
+    if(r.ok){ loadRoutes(); } else alert("Eroare."); }catch(e){ alert("Eroare de rețea."); }
+}
+async function deleteRouteAdmin(id){
+  if(!confirm("Ștergi acest traseu definitiv?")) return;
+  try{ const r=await fetch(API+"/api/routes/"+id,{method:"DELETE",headers:h(token)}); if(r.ok){ clearRouteView(); loadRoutes(); } else alert("Eroare."); }catch(e){ alert("Eroare de rețea."); }
+}
+// ---- desenare traseu (admin, click pe hartă) ----
+function startDraw(){
+  closeRoutes();
+  drawMode=true; drawPts=[]; drawMarkers=[]; if(drawLine){ map.removeLayer(drawLine); drawLine=null; }
+  document.getElementById("drawBar").classList.remove("hidden");
+  document.getElementById("drawCount").textContent="0";
+  if(isMobile()) document.getElementById("app").classList.add("side-hidden");
+  setTimeout(function(){ map.invalidateSize(); },260);
+}
+function addWaypoint(latlng){
+  drawPts.push([latlng.lat,latlng.lng]);
+  const m=L.circleMarker(latlng,{radius:5,color:"#28e0ff",fillColor:"#28e0ff",fillOpacity:1}).addTo(map);
+  drawMarkers.push(m);
+  if(!drawLine){ drawLine=L.polyline(drawPts,{color:"#28e0ff",weight:3,dashArray:"6",opacity:.9}).addTo(map); }
+  else drawLine.setLatLngs(drawPts);
+  document.getElementById("drawCount").textContent=String(drawPts.length);
+}
+function undoDraw(){
+  if(!drawPts.length) return;
+  drawPts.pop(); const m=drawMarkers.pop(); if(m) map.removeLayer(m);
+  if(drawLine) drawLine.setLatLngs(drawPts);
+  document.getElementById("drawCount").textContent=String(drawPts.length);
+}
+function cancelDraw(){
+  drawMode=false;
+  document.getElementById("drawBar").classList.add("hidden");
+  drawMarkers.forEach(function(m){ map.removeLayer(m); }); drawMarkers=[];
+  if(drawLine){ map.removeLayer(drawLine); drawLine=null; } drawPts=[];
+}
+async function finishDraw(){
+  if(drawPts.length<2){ alert("Pune cel puțin 2 puncte pe hartă."); return; }
+  const name=prompt("Nume traseu:"); if(name===null) return;
+  if(!name.trim()){ alert("Nume gol."); return; }
+  const pub=confirm("Faci traseul PUBLIC (vizibil tuturor)?  OK = public, Anulează = privat.");
+  // urmează șoselele prin toate punctele (OSRM); fallback: linii drepte
+  let geometry=drawPts;
+  try{
+    const coordStr=drawPts.map(p=>p[1]+","+p[0]).join(";");
+    const r=await fetch("https://router.project-osrm.org/route/v1/driving/"+coordStr+"?overview=full&geometries=geojson");
+    const d=await r.json();
+    if(d.code==="Ok"&&d.routes&&d.routes.length){ geometry=d.routes[0].geometry.coordinates.map(c=>[c[1],c[0]]); }
+  }catch(e){}
+  try{
+    const res=await fetch(API+"/api/routes",{method:"POST",headers:h(token),body:JSON.stringify({name:name.trim(),public:pub,geometry:geometry})});
+    const dd=await res.json();
+    if(res.ok&&dd.id){ alert("Traseu salvat ("+fmtKm(dd.distance_m)+" km)."); cancelDraw(); openRoutes(); }
+    else alert(dd.error||"Eroare la salvare.");
+  }catch(e){ alert("Eroare de rețea."); }
 }
 function pairLink(key){ return location.origin + "/pair?key=" + encodeURIComponent(key); }
 function copyText(t){
