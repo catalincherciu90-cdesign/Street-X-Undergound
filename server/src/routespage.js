@@ -199,6 +199,13 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
   .perfbtns .arm{background:linear-gradient(180deg,#29e694,#1ec97e);color:#08130d;border-color:transparent;flex:2}
   .perfbtns .arm.armed{background:linear-gradient(180deg,#ff2d95,#d81f7d);color:#fff}
   .perfnote{font-size:10.5px;color:var(--t3);text-align:center;margin-top:8px;line-height:1.45}
+  #perfCount{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);z-index:30;display:none;
+    font-family:"Orbitron",sans-serif;font-weight:900;line-height:1;pointer-events:none;text-align:center}
+  #perfCount.show{display:block}
+  #perfCount .n{font-size:130px;animation:cnt 1s ease-out both;text-shadow:0 0 30px currentColor}
+  #perfCount .go{font-size:96px;letter-spacing:.06em;animation:goflash .8s ease-out both;text-shadow:0 0 34px currentColor}
+  @keyframes cnt{0%{opacity:0;transform:scale(2.3)}28%{opacity:1;transform:scale(1)}100%{opacity:.12;transform:scale(.7)}}
+  @keyframes goflash{0%{opacity:0;transform:scale(.4)}45%{opacity:1;transform:scale(1.18)}100%{opacity:1;transform:scale(1)}}
   #navExit{position:absolute;left:12px;top:calc(12px + env(safe-area-inset-top));z-index:701;display:none;
     align-items:center;gap:6px;background:rgba(10,15,13,.9);border:1px solid var(--line2);color:var(--t1);
     border-radius:12px;padding:10px 13px;font-weight:600;font-family:"Rajdhani",system-ui,sans-serif;cursor:pointer}
@@ -301,10 +308,11 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
   <div class="perfstatus" id="perfStatus">Oprește-te complet, apoi apasă „Armează".</div>
   <div class="perfgrid" id="perfGrid"></div>
   <div class="perfbtns">
-    <button class="arm" id="perfArmBtn" onclick="armPerf()">Armează</button>
-    <button onclick="resetPerfBest()">Șterge recordurile</button>
+    <button class="arm" id="perfCountBtn" onclick="startCountdown()">3·2·1 GO</button>
+    <button id="perfArmBtn" onclick="armPerf()">Armare rapidă</button>
   </div>
-  <div class="perfnote">Măsurare pe baza GPS-ului telefonului (~1 Hz) — valorile sunt orientative. Folosește doar pe drum privat/pistă, în siguranță.</div>
+  <div class="perfnote">Măsurare pe baza GPS-ului telefonului (~1 Hz) — valorile sunt orientative. Folosește doar pe drum privat/pistă, în siguranță. · <span onclick="resetPerfBest()" style="color:var(--pink);cursor:pointer;text-decoration:underline">Șterge recordurile</span></div>
+  <div id="perfCount"></div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1245,6 +1253,7 @@ function perfPos(p){
   if(!perfRunning){
     if(perfArmed && spd>=6 && perfLast){
       perfRunning=true; perfT0=perfLastT; perfDist=0; perfCross={}; perfDistMark={};
+      clearCountdown();
       var st=document.getElementById("perfStatus"); if(st){ st.textContent="Măsor… accelerează!"; st.className="perfstatus run"; }
       perfStep(t,pos,spd);
     }
@@ -1255,8 +1264,8 @@ function perfPos(p){
 }
 function finishPerf(){
   perfRunning=false; perfArmed=false;
-  var btn=document.getElementById("perfArmBtn"); if(btn){ btn.textContent="Armează"; btn.classList.remove("armed"); }
-  var st=document.getElementById("perfStatus"); if(st){ st.textContent='Gata! Oprește-te și „Armează" pentru alt rulaj.'; st.className="perfstatus"; }
+  var btn=document.getElementById("perfArmBtn"); if(btn){ btn.textContent="Armare rapidă"; btn.classList.remove("armed"); }
+  var st=document.getElementById("perfStatus"); if(st){ st.textContent='Gata! Oprește-te și pornește alt rulaj cu „3·2·1 GO".'; st.className="perfstatus"; }
   var res={};
   if(perfCross[100]) res["0-100"]=(perfCross[100].t-perfT0)/1000;
   if(perfCross[100]&&perfCross[200]) res["100-200"]=(perfCross[200].t-perfCross[100].t)/1000;
@@ -1267,11 +1276,12 @@ function finishPerf(){
 }
 function armPerf(){
   if(perfArmed && !perfRunning){
-    perfArmed=false;
-    var s0=document.getElementById("perfStatus"); if(s0){ s0.textContent='Oprește-te complet, apoi apasă „Armează".'; s0.className="perfstatus"; }
-    var b0=document.getElementById("perfArmBtn"); if(b0){ b0.textContent="Armează"; b0.classList.remove("armed"); }
+    perfArmed=false; clearCountdown();
+    var s0=document.getElementById("perfStatus"); if(s0){ s0.textContent='Apasă „3·2·1 GO" și pornește la GO — sau „Armare rapidă".'; s0.className="perfstatus"; }
+    var b0=document.getElementById("perfArmBtn"); if(b0){ b0.textContent="Armare rapidă"; b0.classList.remove("armed"); }
     return;
   }
+  clearCountdown();
   perfArmed=true; perfRunning=false; perfCross={}; perfDistMark={}; perfDist=0;
   PERF_METRICS.forEach(function(m){ var v=document.getElementById("pv-"+m.key); if(v) v.textContent="—"; var c=document.getElementById("pc-"+m.key); if(c) c.classList.remove("hit"); });
   var el=document.getElementById("perfElapsed"); if(el) el.textContent="0.00 s";
@@ -1279,19 +1289,46 @@ function armPerf(){
   var btn=document.getElementById("perfArmBtn"); if(btn){ btn.textContent="Anulează armarea"; btn.classList.add("armed"); }
 }
 function resetPerfBest(){ if(!confirm("Ștergi toate recordurile de performanță?")) return; perfBest={}; savePerfBest(); updatePerfBestLabels(); toast("Recorduri șterse."); }
+// countdown animat 3·2·1·GO
+let perfCountTimers=[];
+function clearCountdown(){ perfCountTimers.forEach(clearTimeout); perfCountTimers=[]; var c=document.getElementById("perfCount"); if(c){ c.classList.remove("show"); c.innerHTML=""; } }
+function showCount(txt,cls,color){
+  var c=document.getElementById("perfCount"); if(!c) return;
+  c.classList.add("show");
+  c.innerHTML='<div class="'+cls+'" style="color:'+color+'">'+txt+'</div>';
+}
+function startCountdown(){
+  if(perfRunning) return;
+  clearCountdown();
+  perfArmed=false; perfRunning=false; perfCross={}; perfDistMark={}; perfDist=0;
+  PERF_METRICS.forEach(function(m){ var v=document.getElementById("pv-"+m.key); if(v) v.textContent="—"; var cc=document.getElementById("pc-"+m.key); if(cc) cc.classList.remove("hit"); });
+  var pe=document.getElementById("perfElapsed"); if(pe) pe.textContent="0.00 s";
+  var st=document.getElementById("perfStatus"); if(st){ st.textContent="Pregătește-te…"; st.className="perfstatus"; }
+  var seq=[["3","#ff5b60"],["2","#eab54a"],["1","#28e0ff"]];
+  seq.forEach(function(s,i){ perfCountTimers.push(setTimeout(function(){ showCount(s[0],"n",s[1]); },i*1000)); });
+  perfCountTimers.push(setTimeout(function(){
+    showCount("GO!","go","#22e08a");
+    perfArmed=true; perfRunning=false; perfCross={}; perfDistMark={}; perfDist=0;
+    var s2=document.getElementById("perfStatus"); if(s2){ s2.textContent="GO! — accelerează!"; s2.className="perfstatus armed"; }
+    var b=document.getElementById("perfArmBtn"); if(b){ b.textContent="Anulează armarea"; b.classList.add("armed"); }
+  },3000));
+  perfCountTimers.push(setTimeout(clearCountdown,4400));
+}
 function openPerf(){
   var pp=document.getElementById("perfPanel"); if(!pp) return;
   perfOn=true; perfArmed=false; perfRunning=false; perfLast=null; perfLastT=0; perfLastSpd=0; perfDist=0; perfCross={}; perfDistMark={};
+  clearCountdown();
   renderPerfGrid();
-  var st=document.getElementById("perfStatus"); if(st){ st.textContent='Oprește-te complet, apoi apasă „Armează".'; st.className="perfstatus"; }
+  var st=document.getElementById("perfStatus"); if(st){ st.textContent='Apasă „3·2·1 GO" și pornește la GO — sau „Armare rapidă".'; st.className="perfstatus"; }
   var el=document.getElementById("perfElapsed"); if(el) el.textContent="0.00 s";
-  var btn=document.getElementById("perfArmBtn"); if(btn){ btn.textContent="Armează"; btn.classList.remove("armed"); }
+  var btn=document.getElementById("perfArmBtn"); if(btn){ btn.textContent="Armare rapidă"; btn.classList.remove("armed"); }
   pp.classList.add("on");
   if(navigator.geolocation){ perfWatch=navigator.geolocation.watchPosition(perfPos,function(){ toast("Nu pot citi GPS-ul."); },{enableHighAccuracy:true,maximumAge:0,timeout:20000}); }
   else toast("GPS indisponibil pe acest dispozitiv.");
 }
 function closePerf(){
   perfOn=false; perfArmed=false; perfRunning=false;
+  clearCountdown();
   if(perfWatch!=null && navigator.geolocation){ navigator.geolocation.clearWatch(perfWatch); perfWatch=null; }
   var pp=document.getElementById("perfPanel"); if(pp) pp.classList.remove("on");
 }
