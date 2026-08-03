@@ -669,7 +669,7 @@ export default {
           const b = await request.json().catch(() => ({}));
           let sp = Math.round(Number(b.sync_speed));
           if (!Number.isFinite(sp)) sp = 100;
-          sp = Math.max(20, Math.min(200, sp));
+          sp = Math.max(3, Math.min(250, sp));
           const party = await myParty();
           if (!party) return json({ error: "nu ești într-un party" }, 400);
           await env.DB.prepare("UPDATE parties SET race_status='lobby', race_speed=?, race_started_at=NULL WHERE id=?").bind(sp, party.id).run();
@@ -704,12 +704,19 @@ export default {
             const allDone = act.length >= 1 && act.every((m) => m.race_finish != null);
             const timeout = party.race_started_at && (now - party.race_started_at) > 300000;
             if (allDone || timeout) await env.DB.prepare("UPDATE parties SET race_status='done' WHERE id=?").bind(party.id).run();
+          } else if (party.race_status === "countdown") {
+            // race_started_at = momentul GO (viitor); la GO trece în cursă
+            if (party.race_started_at && now >= party.race_started_at) {
+              await env.DB.prepare("UPDATE parties SET race_status='racing' WHERE id=? AND race_status='countdown'").bind(party.id).run();
+              await env.DB.prepare("UPDATE party_members SET race_dist=0, race_finish=NULL WHERE party_id=?").bind(party.id).run();
+            }
           } else if (party.race_status === "lobby") {
             const rows = await env.DB.prepare("SELECT cur_speed, last_at FROM party_members WHERE party_id=?").bind(party.id).all();
             const act = (rows.results || []).filter((m) => m.last_at && (now - m.last_at) < 8000);
             const synced = act.length >= 2 && act.every((m) => m.cur_speed != null && Math.abs(m.cur_speed - party.race_speed) <= RACE_TOL);
             if (synced) {
-              await env.DB.prepare("UPDATE parties SET race_status='racing', race_started_at=? WHERE id=? AND race_status='lobby'").bind(now, party.id).run();
+              // sincronizat → countdown de 3s, apoi GO (race_started_at = acum + 3000)
+              await env.DB.prepare("UPDATE parties SET race_status='countdown', race_started_at=? WHERE id=? AND race_status='lobby'").bind(now + 3000, party.id).run();
               await env.DB.prepare("UPDATE party_members SET race_dist=0, race_finish=NULL WHERE party_id=?").bind(party.id).run();
             }
           }

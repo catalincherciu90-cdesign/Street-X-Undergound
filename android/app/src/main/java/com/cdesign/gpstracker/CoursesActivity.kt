@@ -50,6 +50,8 @@ class CoursesActivity : AppCompatActivity() {
         web.keepScreenOn = true
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         web.settings.javaScriptEnabled = true
+        // Permite sunetul (goarna la Roll Race) fără gest suplimentar.
+        web.settings.mediaPlaybackRequiresUserGesture = false
         web.settings.domStorageEnabled = true
         web.settings.allowFileAccess = true
         web.settings.setGeolocationEnabled(true)

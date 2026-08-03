@@ -233,6 +233,7 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
   #raceCount{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);z-index:30;display:none;
     font-family:"Orbitron",sans-serif;font-weight:900;text-align:center;pointer-events:none}
   #raceCount.show{display:block}
+  #raceCount .n{font-size:140px;font-weight:900;animation:cnt 1s ease-out both;text-shadow:0 0 30px currentColor}
   #raceCount .go{font-size:100px;letter-spacing:.06em;animation:goflash .8s ease-out both;text-shadow:0 0 34px currentColor}
   #navExit{position:absolute;left:12px;top:calc(12px + env(safe-area-inset-top));z-index:701;display:none;
     align-items:center;gap:6px;background:rgba(10,15,13,.9);border:1px solid var(--line2);color:var(--t1);
@@ -1061,18 +1062,42 @@ function renderParty(){
     +'<button class="recbtn stop" style="height:44px;margin-top:8px" onclick="leaveParty()">Ieși din party</button>';
 }
 
-// ---- Roll Race (cursă la sincronizare de viteză, 1 km, în party) ----
+// ---- Roll Race (SYNC la viteza mea → 3·2·1 + goarnă → cursă 1 km) ----
 let raceOn=false, raceWatch=null, raceTimer=null, raceState=null;
-let raceLastPos=null, raceLastT=0, raceDist=0, raceStartedSeen=false, raceCurSpeed=0, raceGoFlashed=false;
+let raceLastPos=null, raceLastT=0, raceDist=0, raceStartedSeen=false, raceCurSpeed=0;
+let raceCdTimers=[], raceCdScheduled=false, audioCtx=null;
+function ensureAudio(){ try{ if(!audioCtx){ var AC=window.AudioContext||window.webkitAudioContext; if(AC) audioCtx=new AC(); } if(audioCtx&&audioCtx.state==="suspended") audioCtx.resume(); }catch(e){} }
+function beep(freq,dur,type,vol){
+  if(!audioCtx) return;
+  try{ var o=audioCtx.createOscillator(), g=audioCtx.createGain();
+    o.type=type||"sawtooth"; o.frequency.value=freq; o.connect(g); g.connect(audioCtx.destination);
+    var t=audioCtx.currentTime; g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(vol||0.25,t+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.start(t); o.stop(t+dur+0.03);
+  }catch(e){}
+}
+function playHorn(long){ var d=long?0.7:0.22; beep(330,d,"sawtooth",0.32); beep(392,d,"square",0.16); }
+function clearRaceCd(){ raceCdTimers.forEach(clearTimeout); raceCdTimers=[]; var c=document.getElementById("raceCount"); if(c){ c.classList.remove("show"); c.innerHTML=""; } }
+function showRaceCount(txt,isGo,color){ var c=document.getElementById("raceCount"); if(!c) return; c.classList.add("show"); c.innerHTML='<div class="'+(isGo?"go":"n")+'" style="color:'+(color||"#fff")+'">'+txt+'</div>'; }
+function startRaceCountdown(goAt){
+  if(!goAt) return;
+  clearRaceCd(); ensureAudio();
+  var now=Date.now(), cols={3:"#ff5b60",2:"#eab54a",1:"#28e0ff"};
+  [3,2,1].forEach(function(n){ raceCdTimers.push(setTimeout(function(){ showRaceCount(""+n,false,cols[n]); beep(640,0.16,"square",0.32); }, Math.max(0,(goAt-n*1000)-now))); });
+  raceCdTimers.push(setTimeout(function(){ showRaceCount("GO!",true,"#22e08a"); playHorn(true); }, Math.max(0,goAt-now)));
+  raceCdTimers.push(setTimeout(clearRaceCd, Math.max(0,goAt-now)+1400));
+}
 function openRace(){
   var pp=document.getElementById("racePanel"); if(!pp) return;
-  raceOn=true; raceState=null; raceStartedSeen=false; raceDist=0; raceLastPos=null; raceLastT=0; raceCurSpeed=0; raceGoFlashed=false;
+  ensureAudio();
+  raceOn=true; raceState=null; raceStartedSeen=false; raceDist=0; raceLastPos=null; raceLastT=0; raceCurSpeed=0; raceCdScheduled=false; clearRaceCd();
   renderRace(); pp.classList.add("on");
   if(navigator.geolocation){ raceWatch=navigator.geolocation.watchPosition(racePos,function(){ toast("Nu pot citi GPS-ul."); },{enableHighAccuracy:true,maximumAge:0,timeout:20000}); }
   if(raceTimer) clearInterval(raceTimer); raceTimer=setInterval(raceTick,1000); raceTick();
 }
 function closeRace(){
-  raceOn=false;
+  raceOn=false; clearRaceCd();
   if(raceWatch!=null&&navigator.geolocation){ navigator.geolocation.clearWatch(raceWatch); raceWatch=null; }
   if(raceTimer){ clearInterval(raceTimer); raceTimer=null; }
   var pp=document.getElementById("racePanel"); if(pp) pp.classList.remove("on");
@@ -1087,76 +1112,69 @@ function racePos(p){
   if(raceState && raceState.status==="racing" && raceStartedSeen && raceLastPos){ raceDist += haversine(raceLastPos[0],raceLastPos[1],lat,lng); }
   raceLastPos=pos; raceLastT=t;
 }
-function raceFlash(txt){
-  var c=document.getElementById("raceCount"); if(!c) return;
-  c.classList.add("show"); c.innerHTML='<div class="go" style="color:#22e08a">'+txt+'</div>';
-  setTimeout(function(){ c.classList.remove("show"); c.innerHTML=""; },1500);
-}
 async function raceTick(){
   if(!raceOn) return;
   try{
     fetch(API+"/api/my/party/race/tick",{method:"POST",headers:Object.assign({"Content-Type":"application/json"},hdr()),body:JSON.stringify({speed:raceCurSpeed,dist:raceDist})});
     var r=await fetch(API+"/api/my/party/race",{headers:hdr()}); var d=await r.json();
-    if(!d.in_race){ raceState=null; renderRace(); return; }
-    if(d.status==="racing" && (!raceState || raceState.status!=="racing")){
-      if(!raceStartedSeen){ raceStartedSeen=true; raceDist=0; }
-      if(!raceGoFlashed){ raceGoFlashed=true; raceFlash("GO!"); }
-    }
-    if(d.status!=="racing"){ raceGoFlashed=false; }
+    if(!d.in_race){ raceState=null; raceCdScheduled=false; clearRaceCd(); renderRace(); return; }
+    if(d.status==="lobby"){ raceCdScheduled=false; }
+    if(d.status==="countdown" && !raceCdScheduled && d.started_at){ raceCdScheduled=true; startRaceCountdown(d.started_at); }
+    if(d.status==="racing" && !raceStartedSeen){ raceStartedSeen=true; raceDist=0; }
     raceState=d; renderRace();
   }catch(e){}
 }
 async function startRace(){
-  var inp=document.getElementById("raceSyncSpeed");
-  var sp=inp?parseInt(inp.value,10):((raceState&&raceState.sync_speed)?raceState.sync_speed:100);
-  if(!isFinite(sp)) sp=100;
-  raceStartedSeen=false; raceDist=0; raceGoFlashed=false;
+  ensureAudio();
+  var sp=Math.round(raceCurSpeed);
+  if(!isFinite(sp)||sp<3){ toast("Adu mașina la viteza dorită, apoi apasă SYNC."); return; }
+  raceStartedSeen=false; raceDist=0; raceCdScheduled=false; clearRaceCd();
   try{
     var r=await fetch(API+"/api/my/party/race/start",{method:"POST",headers:Object.assign({"Content-Type":"application/json"},hdr()),body:JSON.stringify({sync_speed:sp})});
     var d=await r.json();
-    if(r.ok){ toast("Cursă pornită — aduceți viteza la "+(d.sync_speed||sp)+" km/h!"); raceTick(); }
+    if(r.ok){ toast("SYNC la "+(d.sync_speed||sp)+" km/h — ceilalți se aduc la viteză!"); raceTick(); }
     else toast(d.error||"Eroare la pornirea cursei.");
   }catch(e){ toast("Eroare de rețea."); }
 }
 async function stopRace(){
   try{ await fetch(API+"/api/my/party/race/stop",{method:"POST",headers:hdr()}); }catch(e){}
-  raceState=null; raceStartedSeen=false; raceGoFlashed=false; renderRace(); raceTick();
+  raceState=null; raceStartedSeen=false; raceCdScheduled=false; clearRaceCd(); renderRace(); raceTick();
 }
 function renderRace(){
   var el=document.getElementById("raceBody"); if(!el) return;
   var s=raceState;
   if(!s){
-    el.innerHTML='<div class="racehint">Sincronizați-vă la o viteză, iar aplicația vă dă startul automat și măsoară o cursă de 1 km. Primul la 1 km câștigă.</div>'
-      +'<label class="racelbl">Viteză de sincronizare (km/h)</label>'
-      +'<input id="raceSyncSpeed" type="number" value="100" min="20" max="200" class="raceinp" />'
-      +'<button class="recbtn start" style="height:50px;margin-top:12px" onclick="startRace()">Pornește cursa</button>'
-      +'<div class="racenote">Trebuie să fiți cel puțin 2 în party. Startul e automat când toți ajungeți la viteza aleasă. Pe drum privat/pistă, în siguranță.</div>';
+    el.innerHTML='<div class="racehint">Adu mașina la viteza dorită și apasă <b style="color:#ff8a3d">SYNC</b> — se ia viteza ta din acel moment ca țintă. Ceilalți se aduc la aceeași viteză, apoi <b>3·2·1 + goarnă</b> și GO. Primul la 1 km câștigă.</div>'
+      +'<button class="recbtn start" style="height:66px;margin-top:14px;font-size:22px;letter-spacing:.04em" onclick="startRace()">SYNC la viteza mea</button>'
+      +'<div class="racenote">Trebuie să fiți cel puțin 2 în party. Pe drum privat/pistă, cu un pasager care ține telefonul.</div>';
     return;
   }
   var head="";
-  if(s.status==="lobby") head='<div class="racestat">Aduceți viteza la <b>'+s.sync_speed+' km/h</b><span class="racesub">Start automat când toți sunteți sincronizați (±'+s.tol+' km/h)</span></div>';
+  if(s.status==="lobby") head='<div class="racestat">Aduceți viteza la <b>'+s.sync_speed+' km/h</b><span class="racesub">3·2·1 automat când toți sunteți sincronizați (±'+s.tol+' km/h)</span></div>';
+  else if(s.status==="countdown") head='<div class="racestat go">SINCRONIZAT — pregătiți-vă!</div>';
   else if(s.status==="racing") head='<div class="racestat go">CURSĂ! primul la 1 km câștigă</div>';
   else head='<div class="racestat">Rezultate · cursă 1 km</div>';
   var members=(s.members||[]).slice();
   if(s.status==="done") members.sort(function(a,b){ var fa=a.finish==null?Infinity:a.finish, fb=b.finish==null?Infinity:b.finish; return fa-fb; });
   else if(s.status==="racing") members.sort(function(a,b){ return (b.dist||0)-(a.dist||0); });
+  var showBar=(s.status==="racing"||s.status==="done");
+  var showPos=(s.status==="racing"||s.status==="done");
   var rows=members.map(function(m,i){
     var pct=Math.max(0,Math.min(100,(m.dist||0)/(s.dist_target||1000)*100));
     var right="";
-    if(s.status==="lobby") right=(m.speed!=null?Math.round(m.speed)+' km/h':(m.online?'—':'offline'))+(m.synced?' <span class="ok">✔</span>':'');
+    if(s.status==="lobby"||s.status==="countdown") right=(m.speed!=null?Math.round(m.speed)+' km/h':(m.online?'—':'offline'))+(m.synced?' <span class="ok">✔</span>':'');
     else if(s.status==="racing") right=(m.finish!=null?('🏁 '+fmtClock(m.finish/1000)):Math.round(m.dist||0)+' m');
     else right=(m.finish!=null?fmtClock(m.finish/1000):'DNF');
-    var pos=(s.status!=="lobby")?('<span class="racepos">'+(i+1)+'</span>'):'';
+    var pos=showPos?('<span class="racepos">'+(i+1)+'</span>'):'';
     return '<div class="racerow'+(m.me?" me":"")+'"><div class="racetop">'+pos
       +'<span class="racename" style="color:'+m.color+'">'+esc(m.name||"?")+(m.me?" (tu)":"")+'</span>'
       +'<span class="raceval">'+right+'</span></div>'
-      +((s.status!=="lobby")?('<div class="racebar"><div class="racefill" style="width:'+pct.toFixed(0)+'%;background:'+m.color+'"></div></div>'):"")
+      +(showBar?('<div class="racebar"><div class="racefill" style="width:'+pct.toFixed(0)+'%;background:'+m.color+'"></div></div>'):"")
       +'</div>';
   }).join("");
   var btns="";
-  if(s.status==="lobby") btns='<button class="recbtn stop" style="height:46px;margin-top:12px" onclick="stopRace()">Anulează</button>';
-  else if(s.status==="done") btns='<button class="recbtn start" style="height:46px;margin-top:12px" onclick="startRace()">Cursă nouă</button>';
-  else btns='<button class="recbtn stop" style="height:44px;margin-top:12px" onclick="stopRace()">Oprește cursa</button>';
+  if(s.status==="done") btns='<button class="recbtn start" style="height:46px;margin-top:12px" onclick="stopRace()">Cursă nouă</button>';
+  else btns='<button class="recbtn stop" style="height:44px;margin-top:12px" onclick="stopRace()">'+(s.status==="lobby"||s.status==="countdown"?"Anulează":"Oprește cursa")+'</button>';
   el.innerHTML=head+'<div class="racelist">'+rows+'</div>'+btns;
 }
 
