@@ -141,6 +141,11 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
   .navinfo b.arrived{color:var(--acc)}
   body.approach-on .navinfo b{color:#eab54a}
   body.approach-on .compass{border-color:#eab54a;box-shadow:0 0 16px rgba(234,181,74,.5)}
+  #recenterBtn{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);z-index:702;display:none;
+    align-items:center;gap:7px;background:rgba(10,15,13,.94);border:1px solid var(--acc);color:var(--acc);
+    border-radius:22px;padding:11px 18px;font-weight:700;font-family:"Rajdhani",sans-serif;font-size:14.5px;
+    letter-spacing:.02em;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.55)}
+  #recenterBtn:active{transform:translateX(-50%) scale(.96)}
   #navExit{position:absolute;left:12px;top:calc(12px + env(safe-area-inset-top));z-index:701;display:none;
     align-items:center;gap:6px;background:rgba(10,15,13,.9);border:1px solid var(--line2);color:var(--t1);
     border-radius:12px;padding:10px 13px;font-weight:600;font-family:"Rajdhani",system-ui,sans-serif;cursor:pointer}
@@ -172,6 +177,7 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
     <div class="navinfo"><b id="navRemain">—</b> <span id="navNext"></span></div>
   </div>
   <button id="navExit" onclick="exitNav()"><span data-ic="x"></span> Ieși</button>
+  <button id="recenterBtn" onclick="recenterNav()"><span data-ic="nav" data-sz="16"></span> Recentrează</button>
   <button id="styleBtn" onclick="cycleStyle()" title="Stil hartă">🗺️</button>
   <button id="locBtn" onclick="locateMe()" title="Unde sunt">📍</button>
 </div>
@@ -322,6 +328,13 @@ function initMap(){
     var sb=document.getElementById("styleBtn"); if(sb) sb.textContent=styleDef(mapStyle).icon;
     addBase();
     L.control.zoom({position:"bottomleft"}).addTo(map);
+    // Dacă utilizatorul mișcă/zoom-uiește harta în timpul navigației, nu-l mai recentrăm
+    map.on("movestart zoomstart", function(){
+      if(selfMove) return;
+      navFollow=false;
+      if(navOn){ var b=document.getElementById("recenterBtn"); if(b) b.style.display="flex"; }
+    });
+    map.on("moveend zoomend", function(){ selfMove=false; });
     var fix=function(){ if(map) map.invalidateSize(); dbg(); };
     [100,300,600,1200,2500,4000].forEach(function(t){ setTimeout(fix,t); });
     window.addEventListener("resize",fix);
@@ -350,6 +363,7 @@ function startLocate(){
   }, function(){}, {enableHighAccuracy:true, maximumAge:5000, timeout:15000});
 }
 function locateMe(){
+  if(navOn){ recenterNav(); return; }
   if(myPos){ map.setView(myPos, Math.max(map.getZoom(),16)); return; }
   if(!navigator.geolocation){ toast("GPS indisponibil pe acest dispozitiv."); return; }
   toast("Caut poziția…");
@@ -516,6 +530,21 @@ async function delRoute(id){
 let navOn=false, navRoute=[], navWatch=null, lastNavPos=null;
 // fază „către start" — ghidare până la începutul traseului
 let navStage=null, startPt=null, approachLine=null, approachPath=[], approachSteps=[], approachStepIdx=1;
+// urmărire hartă: harta te urmează doar până când o miști tu (pan/zoom)
+let navFollow=true, selfMove=false, navZoomed=false;
+function navSetView(ll){
+  if(!map) return;
+  selfMove=true;
+  var z = navZoomed ? map.getZoom() : 17;
+  navZoomed=true;
+  map.setView(ll, z, {animate:false});
+}
+function recenterNav(){
+  navFollow=true; navZoomed=false; // revino la nivelul de zoom pentru navigație
+  var b=document.getElementById("recenterBtn"); if(b) b.style.display="none";
+  if(lastNavPos) navSetView(lastNavPos);
+  else if(myPos) navSetView(myPos);
+}
 function bearing(a,b,c,d){
   var p=Math.PI/180, y=Math.sin((d-b)*p)*Math.cos(c*p),
       x=Math.cos(a*p)*Math.sin(c*p)-Math.sin(a*p)*Math.cos(c*p)*Math.cos((d-b)*p);
@@ -533,6 +562,8 @@ async function startNav(id){
     if(!r.ok||!d.geometry||d.geometry.length<2){ toast(d.error||"Traseu indisponibil."); return; }
     navRoute=d.geometry; lastNavPos=null; navOn=true;
     navStage=null; startPt=navRoute[0]; approachPath=[]; approachSteps=[]; approachStepIdx=1;
+    navFollow=true; navZoomed=false;
+    var rb=document.getElementById("recenterBtn"); if(rb) rb.style.display="none";
     if(approachLine){map.removeLayer(approachLine);approachLine=null;}
     if(viewLayer){map.removeLayer(viewLayer);viewLayer=null;}
     viewLayer=L.layerGroup().addTo(map);
@@ -542,7 +573,7 @@ async function startNav(id){
     var arrow=document.getElementById("navArrow"); if(arrow) arrow.style.opacity="1";
     document.getElementById("navRemain").textContent="Pornește GPS-ul…";
     document.getElementById("navNext").textContent="";
-    setTimeout(function(){ if(map){ map.invalidateSize(); map.fitBounds(L.polyline(navRoute).getBounds().pad(0.2)); } },120);
+    setTimeout(function(){ if(map){ map.invalidateSize(); selfMove=true; map.fitBounds(L.polyline(navRoute).getBounds().pad(0.2)); } },120);
     if(!navigator.geolocation){ toast("GPS indisponibil pe acest dispozitiv."); return; }
     navWatch=navigator.geolocation.watchPosition(navPos,function(){ toast("Nu pot citi GPS-ul."); },{enableHighAccuracy:true,maximumAge:1000,timeout:15000});
   }catch(e){ toast("Eroare la pornirea navigației."); }
@@ -550,6 +581,7 @@ async function startNav(id){
 function exitNav(){
   navOn=false; navStage=null;
   document.body.classList.remove("nav-on"); document.body.classList.remove("approach-on");
+  var rb=document.getElementById("recenterBtn"); if(rb) rb.style.display="none";
   if(approachLine){ map.removeLayer(approachLine); approachLine=null; }
   if(navWatch!=null){ navigator.geolocation.clearWatch(navWatch); navWatch=null; }
   setTimeout(function(){ if(map) map.invalidateSize(); },120);
@@ -634,7 +666,7 @@ function navPos(p){
   var spd=(p.coords.speed!=null&&p.coords.speed>=0)?Math.round(p.coords.speed*3.6):0;
   if(!meDot){ meDot=L.circleMarker([lat,lng],{radius:8,color:"#fff",weight:3,fillColor:"#22e08a",fillOpacity:1}).addTo(map); }
   else meDot.setLatLng([lat,lng]);
-  map.setView([lat,lng],Math.max(map.getZoom(),17));
+  if(navFollow) navSetView([lat,lng]);
   // direcția în care e orientat șoferul
   var heading=null;
   if(p.coords.heading!=null && !isNaN(p.coords.heading) && spd>=2) heading=p.coords.heading;
