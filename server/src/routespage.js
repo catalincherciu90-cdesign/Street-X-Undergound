@@ -856,13 +856,24 @@ async function buildApproach(lat,lng){
     }
   }catch(e){}
   if(approachPath.length<2) approachPath=[[lat,lng],[s[0],s[1]]]; // fallback: linie dreaptă
+  // pentru fiecare manevră, reține indexul ei pe traseu (ca să avansăm după progres)
+  approachSteps.forEach(function(st){ st.pathIdx=nearestPathIdx(approachPath, st.loc); });
   if(map) approachLine=L.polyline(approachPath,{color:"#eab54a",weight:5,opacity:.9,dashArray:"2 9",lineCap:"round"}).addTo(map);
   toast("Te duc întâi la start ("+(haversine(lat,lng,s[0],s[1])/1000).toFixed(1)+" km)");
 }
+function nearestPathIdx(path,ll){
+  var bi=0,bd=Infinity;
+  for(var i=0;i<path.length;i++){ var dd=haversine(ll[0],ll[1],path[i][0],path[i][1]); if(dd<bd){bd=dd;bi=i;} }
+  return bi;
+}
 function nextManeuver(lat,lng){
   if(!approachSteps.length) return null;
-  while(approachStepIdx<approachSteps.length-1 && haversine(lat,lng,approachSteps[approachStepIdx].loc[0],approachSteps[approachStepIdx].loc[1])<30) approachStepIdx++;
-  return approachSteps[approachStepIdx]?approachSteps[approachStepIdx].text:null;
+  // avansează după progresul pe traseu: prima manevră al cărei punct e încă în față
+  var cur=nearestPathIdx(approachPath,[lat,lng]);
+  for(var i=0;i<approachSteps.length;i++){
+    if(approachSteps[i].pathIdx != null && approachSteps[i].pathIdx > cur+1) return approachSteps[i].text;
+  }
+  return approachSteps[approachSteps.length-1].text; // aproape de start → ultima instrucțiune
 }
 function switchToRoute(lat,lng){
   navStage="route";
