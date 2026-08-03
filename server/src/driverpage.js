@@ -68,8 +68,8 @@ export const DRIVER_HTML = /* html */ `<!doctype html>
 </head>
 <body>
 <header>
-  <span class="mark"><img src="/brand/logo" alt="SXU" style="height:22px;width:auto;max-width:22px" /></span>
-  <span class="wm">STREET&nbsp;X <b>UNDERGROUND</b></span>
+  <img src="/brand/logo" alt="Street X Underground" style="height:32px;width:auto;max-width:150px;display:block" />
+  <span class="sp" style="flex:1"></span>
   <span class="online"><span class="pdot" id="onlineDot"></span><span id="onlineTxt">Online</span></span>
   <button class="hbtn" onclick="load()" title="Reîmprospătează"><span data-ic="refresh"></span></button>
   <button class="hbtn" onclick="doLogout()" title="Deconectează-te"><span data-ic="logout"></span></button>
