@@ -8,7 +8,8 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.cdesign.gpstracker"
+        // Package id nou → se instalează ca aplicație separată (nu ca update peste cea veche).
+        applicationId = "com.cdesign.streetxunderground"
         minSdk = 24
         targetSdk = 34
         versionCode = 1
