@@ -1011,7 +1011,7 @@ async function partyTick(){
     if(tab==="party") renderParty();
   }catch(e){}
 }
-function startPartyPolling(){ stopPartyPolling(); partyTimer=setInterval(partyTick,2500); partyTick(); }
+function startPartyPolling(){ stopPartyPolling(); partyTimer=setInterval(partyTick,1000); partyTick(); }
 function stopPartyPolling(){ if(partyTimer){ clearInterval(partyTimer); partyTimer=null; } }
 async function startParty(routeId){
   try{
@@ -1104,7 +1104,7 @@ function openRace(){
   raceOn=true; raceState=null; raceStartedSeen=false; raceDist=0; raceLastPos=null; raceLastT=0; raceCurSpeed=0; raceCdScheduled=false; clearRaceCd();
   renderRace(); pp.classList.add("on");
   if(navigator.geolocation){ raceWatch=navigator.geolocation.watchPosition(racePos,function(){ toast("Nu pot citi GPS-ul."); },{enableHighAccuracy:true,maximumAge:0,timeout:20000}); }
-  if(raceTimer) clearInterval(raceTimer); raceTimer=setInterval(raceTick,1000); raceTick();
+  if(raceTimer) clearInterval(raceTimer); raceTimer=setInterval(raceTick,700); raceTick();
 }
 function closeRace(){
   raceOn=false; clearRaceCd();
@@ -1222,7 +1222,7 @@ async function loadMe(){
   try{ var r=await fetch(API+"/api/my/me",{headers:hdr()}); var d=await r.json();
     if(r.ok&&d.friend_code){ myCode=d.friend_code; if(tab==="friends") renderFriends(); } }catch(e){}
 }
-function startFriendsPolling(){ if(friendsTimer) return; friendsTimer=setInterval(function(){ if(tab==="friends") loadFriends(); else stopFriendsPolling(); },5000); }
+function startFriendsPolling(){ if(friendsTimer) return; friendsTimer=setInterval(function(){ if(tab==="friends") loadFriends(); else stopFriendsPolling(); },2500); }
 function stopFriendsPolling(){ if(friendsTimer){ clearInterval(friendsTimer); friendsTimer=null; } }
 async function loadFriends(){
   if(!key) return;

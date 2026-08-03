@@ -26,7 +26,7 @@ object Prefs {
         sp(ctx).getString(KEY_DEVICE, "") ?: ""
 
     fun intervalSec(ctx: Context): Int =
-        sp(ctx).getInt(KEY_INTERVAL, 30)
+        sp(ctx).getInt(KEY_INTERVAL, 2)
 
     fun isRunning(ctx: Context): Boolean =
         sp(ctx).getBoolean(KEY_RUNNING, false)

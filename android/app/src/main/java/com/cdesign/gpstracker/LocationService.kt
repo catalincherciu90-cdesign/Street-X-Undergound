@@ -197,7 +197,7 @@ class LocationService : LifecycleService() {
     }
 
     private fun startUpdates() {
-        val intervalMs = Prefs.intervalSec(this).coerceAtLeast(5) * 1000L
+        val intervalMs = Prefs.intervalSec(this).coerceAtLeast(1) * 1000L
         val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, intervalMs)
             .setMinUpdateIntervalMillis(intervalMs)
             .setMinUpdateDistanceMeters(0f)

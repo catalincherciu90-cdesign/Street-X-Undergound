@@ -176,8 +176,8 @@ class MainActivity : AppCompatActivity() {
                         val key = o.optString("key")
                         val name = o.optString("name")
                         if (key.isNotEmpty()) {
-                            val interval = b.etInterval.text.toString().toIntOrNull() ?: 30
-                            Prefs.save(this, url, key, interval.coerceIn(5, 3600))
+                            val interval = b.etInterval.text.toString().toIntOrNull() ?: 2
+                            Prefs.save(this, url, key, interval.coerceIn(1, 3600))
                             Prefs.setDeviceName(this, name)
                             Prefs.setDeviceId(this, o.optInt("id"))
                             b.etPass.setText("")
