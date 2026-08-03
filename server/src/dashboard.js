@@ -141,8 +141,8 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
   .mkav{width:50px;height:50px;min-width:50px;aspect-ratio:1/1;border-radius:50%;border:3px solid var(--gold);background:#0e1620;color:#fff;font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 12px rgba(0,0,0,.6);letter-spacing:.5px;overflow:hidden}
   img.mkav{object-fit:cover;display:block;padding:0}
   .mkname{margin-top:5px;padding:3px 10px;border-radius:8px;color:#12202b;font-size:11px;font-weight:700;white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis;box-shadow:0 2px 6px rgba(0,0,0,.5)}
-  /* Temă „Underground": uscat oliv-teal întunecat, drumuri palide care ies în evidență */
-  .leaflet-tile-pane{filter:brightness(.9) contrast(1.08) saturate(.5) sepia(.45) hue-rotate(120deg)}
+  /* Temă „Underground": uscat oliv-teal întunecat + drumuri albe, bold (ca pe harta din joc) */
+  .leaflet-tile-pane{filter:brightness(1.18) contrast(1.65) saturate(.42) sepia(.32) hue-rotate(115deg)}
   /* rute/trasee cu efect neon (glow) ca pe harta din joc */
   .glowline{filter:drop-shadow(0 0 3px rgba(125,249,255,.9)) drop-shadow(0 0 7px rgba(34,224,138,.5))}
   /* dark leaflet controls */
