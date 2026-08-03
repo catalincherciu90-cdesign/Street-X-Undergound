@@ -152,6 +152,12 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
     box-shadow:0 4px 14px rgba(0,0,0,.5)}
   #clearBtn:active{transform:scale(.95)}
   body.nav-on #clearBtn{display:none!important}
+  #speedo{position:absolute;right:12px;bottom:128px;z-index:600;display:none;flex-direction:column;
+    align-items:center;justify-content:center;width:68px;height:68px;border-radius:50%;
+    background:rgba(10,15,13,.9);border:2px solid var(--cyan);
+    box-shadow:0 0 14px rgba(40,224,255,.35),inset 0 0 10px rgba(40,224,255,.15)}
+  #speedo b{font-family:var(--mono);font-size:23px;line-height:1;color:#eafcff;font-weight:700}
+  #speedo span{font-size:8.5px;letter-spacing:.08em;color:var(--cyan);margin-top:2px;text-transform:uppercase}
   #navExit{position:absolute;left:12px;top:calc(12px + env(safe-area-inset-top));z-index:701;display:none;
     align-items:center;gap:6px;background:rgba(10,15,13,.9);border:1px solid var(--line2);color:var(--t1);
     border-radius:12px;padding:10px 13px;font-weight:600;font-family:"Rajdhani",system-ui,sans-serif;cursor:pointer}
@@ -185,6 +191,7 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
   <button id="navExit" onclick="exitNav()"><span data-ic="x"></span> Ieși</button>
   <button id="recenterBtn" onclick="recenterNav()"><span data-ic="nav" data-sz="16"></span> Recentrează</button>
   <button id="clearBtn" onclick="clearRouteView()"><span data-ic="x" data-sz="15"></span> Anulează</button>
+  <div id="speedo"><b id="spVal">0</b><span>km/h</span></div>
   <button id="styleBtn" onclick="cycleStyle()" title="Stil hartă">🗺️</button>
   <button id="locBtn" onclick="locateMe()" title="Unde sunt">📍</button>
 </div>
@@ -277,6 +284,11 @@ document.addEventListener("DOMContentLoaded",function(){fillIcons();});
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 function hdr(){return {"Authorization":"Bearer "+key};}
 function toast(m){var t=document.getElementById("toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2200);}
+function setSpeed(kmh){
+  var v=document.getElementById("spVal"); if(v) v.textContent=(kmh!=null&&isFinite(kmh)&&kmh>=0)?Math.round(kmh):0;
+  var s=document.getElementById("speedo"); if(s&&s.style.display!=="flex") s.style.display="flex";
+}
+function kmhOf(p){ return (p&&p.coords&&p.coords.speed!=null&&p.coords.speed>=0)?(p.coords.speed*3.6):0; }
 function fmtKm(m){return ((m||0)/1000).toFixed(1);}
 function fmtDur(s){s=Math.round(s||0);var m=Math.floor(s/60),ss=s%60;return m+":"+(ss<10?"0":"")+ss;}
 function haversine(a,b,c,d){var R=6371000,p=Math.PI/180,dLa=(c-a)*p,dLo=(d-b)*p,x=Math.sin(dLa/2)**2+Math.cos(a*p)*Math.cos(c*p)*Math.sin(dLo/2)**2;return 2*R*Math.asin(Math.sqrt(x));}
@@ -366,6 +378,7 @@ function startLocate(){
   locWatch=navigator.geolocation.watchPosition(function(p){
     myPos=[p.coords.latitude,p.coords.longitude];
     setMe(myPos, p.coords.accuracy);
+    setSpeed(kmhOf(p));
     if(!locCentered && !navOn){ locCentered=true; map.setView(myPos, 16); }
   }, function(){}, {enableHighAccuracy:true, maximumAge:5000, timeout:15000});
 }
@@ -396,7 +409,7 @@ function startRec(){
 function onPos(p){
   var lat=p.coords.latitude,lng=p.coords.longitude;
   var spd=(p.coords.speed!=null&&p.coords.speed>=0)?Math.round(p.coords.speed*3.6):0;
-  document.getElementById("stSpd").textContent=spd;
+  document.getElementById("stSpd").textContent=spd; setSpeed(spd);
   if(!meDot){ meDot=L.circleMarker([lat,lng],{radius:8,color:"#fff",weight:3,fillColor:"#22e08a",fillOpacity:1}).addTo(map); }
   else meDot.setLatLng([lat,lng]);
   if(!recording){ map.setView([lat,lng],15); return; }
@@ -679,6 +692,7 @@ function navPos(p){
   if(!navOn||!navRoute.length) return;
   var lat=p.coords.latitude, lng=p.coords.longitude;
   var spd=(p.coords.speed!=null&&p.coords.speed>=0)?Math.round(p.coords.speed*3.6):0;
+  setSpeed(spd);
   if(!meDot){ meDot=L.circleMarker([lat,lng],{radius:8,color:"#fff",weight:3,fillColor:"#22e08a",fillOpacity:1}).addTo(map); }
   else meDot.setLatLng([lat,lng]);
   if(navFollow) navSetView([lat,lng]);
