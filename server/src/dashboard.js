@@ -9,6 +9,9 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
 <title>DropLy Courier</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;800&family=Rajdhani:wght@500;600;700&display=swap" />
 <style>
   :root{
     --bg:#0a0f0d;--panel:#101815;--s1:#101815;--s2:#161f1b;--s3:#1c2622;
@@ -191,13 +194,62 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
   .bub.me{background:linear-gradient(180deg,#1f5a41,#164531);color:#eafff4;align-self:flex-end;border-bottom-right-radius:4px}
   .bub .ts{display:block;font-size:10px;opacity:.65;margin-top:4px}
   @media (max-width:860px){ .drawer{top:56px;width:100%;height:calc(100% - 56px)} }
+
+  /* ===================== TEMĂ „STREET X UNDERGROUND" ===================== */
+  :root{ --neon-pink:#ff2d95; --neon-cyan:#28e0ff; --neon-purple:#9b6bff; }
+
+  /* typografie racing */
+  .modal h3,.kpi .val,.ttl{font-family:"Orbitron",system-ui,sans-serif;letter-spacing:.05em}
+  .kpi .lab,.grp,.seg,.badge,.ctag,.dl,.brandtag{font-family:"Rajdhani",system-ui,sans-serif;letter-spacing:.04em;font-weight:600}
+  .brand .logo{filter:drop-shadow(0 0 6px rgba(34,224,138,.45)) drop-shadow(0 0 15px rgba(40,224,255,.22))}
+  .modal h3{text-transform:uppercase;font-size:15px;text-shadow:0 0 12px rgba(40,224,255,.35)}
+  .grp{color:var(--neon-cyan);text-shadow:0 0 8px rgba(40,224,255,.28)}
+
+  /* scanlines + halou de culoare (atmosferă underground, subtil) */
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:9998;
+    background:repeating-linear-gradient(0deg, rgba(0,0,0,0) 0 2px, rgba(0,0,0,.075) 2px 3px);opacity:.5}
+  body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:9997;
+    background:radial-gradient(ellipse at 50% -8%, rgba(40,224,255,.05), transparent 55%),
+      radial-gradient(ellipse at 100% 112%, rgba(255,45,149,.05), transparent 55%)}
+
+  /* butoane + accente cu glow neon */
+  button.primary{box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 0 0 1px rgba(34,224,138,.35),0 4px 16px rgba(34,224,138,.3)}
+  button.primary:hover{box-shadow:inset 0 1px 0 rgba(255,255,255,.2),0 0 0 1px rgba(34,224,138,.5),0 6px 22px rgba(34,224,138,.45)}
+  .tb-actions button:hover,.foot button:hover,.sidetools button:hover{border-color:var(--neon-cyan);box-shadow:0 0 12px rgba(40,224,255,.25)}
+  .kpi .val{text-shadow:0 0 10px rgba(34,224,138,.28)}
+  .seg.on{box-shadow:inset 0 0 12px rgba(34,224,138,.22),0 0 0 1px rgba(34,224,138,.4)}
+  .dev.online::before{box-shadow:0 0 10px rgba(34,224,138,.75)}
+  .dev.sel{box-shadow:0 0 0 1px rgba(40,224,255,.35),0 0 18px rgba(40,224,255,.12)}
+  .qrbtn:hover{border-color:var(--neon-cyan);box-shadow:0 0 10px rgba(40,224,255,.22)}
+
+  /* ---- LOGIN „garage / underground" ---- */
+  #login{background:
+    radial-gradient(1200px 520px at 50% -10%, rgba(40,224,255,.10), transparent 60%),
+    radial-gradient(900px 520px at 50% 120%, rgba(255,45,149,.10), transparent 60%),
+    linear-gradient(180deg,#070b09,#0a0f0d)}
+  #login::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background-image:linear-gradient(rgba(40,224,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(40,224,255,.05) 1px,transparent 1px);
+    background-size:44px 44px;
+    -webkit-mask-image:radial-gradient(ellipse at center,#000 30%,transparent 75%);
+    mask-image:radial-gradient(ellipse at center,#000 30%,transparent 75%)}
+  #login .card{position:relative;z-index:1;border:1px solid rgba(40,224,255,.25);
+    box-shadow:0 0 0 1px rgba(34,224,138,.12),0 24px 60px rgba(0,0,0,.6),0 0 40px rgba(40,224,255,.08);
+    background:linear-gradient(180deg,rgba(22,31,27,.96),rgba(13,19,16,.98))}
+  #login .card .ttl{font-size:16px;text-transform:uppercase;letter-spacing:.22em;text-align:center;
+    color:var(--neon-cyan);margin:0 0 3px;text-shadow:0 0 14px rgba(40,224,255,.5)}
+  #login .card .ttl2{font-size:11px;text-align:center;color:var(--t3);letter-spacing:.16em;text-transform:uppercase;margin:0 0 14px;font-family:"Rajdhani",system-ui,sans-serif}
+  .dl{border-color:rgba(255,45,149,.35);color:var(--neon-pink)}
+  .dl:hover{border-color:var(--neon-pink);background:rgba(255,45,149,.08);box-shadow:0 0 14px rgba(255,45,149,.2)}
+  @media (prefers-reduced-motion:reduce){body::before{display:none}}
 </style>
 </head>
 <body>
 <!-- LOGIN -->
 <div id="login">
   <div class="card">
-    <img src="/brand/logo" alt="DropLy Courier" style="display:block;height:120px;max-width:100%;margin:0 auto 18px" />
+    <img src="/brand/logo" alt="Street X Underground" style="display:block;height:110px;max-width:100%;margin:0 auto 14px" />
+    <div class="ttl">Street X Underground</div>
+    <div class="ttl2">Panou dispecerat</div>
     <p style="text-align:center">Autentificare administrator</p>
     <label>Utilizator</label>
     <input id="lu" value="admin" autocomplete="username" />
