@@ -139,6 +139,7 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
     <div class="navinfo"><b id="navRemain">—</b> <span id="navNext"></span></div>
   </div>
   <button id="navExit" onclick="exitNav()"><span data-ic="x"></span> Ieși</button>
+  <div id="dbg" style="position:absolute;left:8px;top:8px;z-index:650;background:rgba(0,0,0,.6);color:#8bf9ff;font:11px/1.3 ui-monospace,monospace;padding:4px 7px;border-radius:6px;pointer-events:none">init…</div>
 </div>
 
 <!-- sheet ÎNREGISTRARE -->
@@ -221,26 +222,34 @@ function mapMsg(msg,color){
   d.style.color=color||"#ff5b60"; d.textContent=msg;
 }
 function clearMapMsg(){ var d=document.getElementById("mapMsg"); if(d) d.remove(); }
+var tLoad=0, tErr=0;
+function dbg(){
+  var d=document.getElementById("dbg"); if(!d) return;
+  var el=document.getElementById("map");
+  var sz=el?(el.clientWidth+"x"+el.clientHeight):"?";
+  d.textContent="L:"+(typeof L!=="undefined"?"ok":"LIPSĂ")+" map:"+(map?"ok":"nu")+" "+sz+" tiles:"+tLoad+"/"+tErr;
+}
 function addBase(){
-  var tilesOk=false;
   var layer=L.tileLayer("/tiles/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap © CARTO"});
-  layer.on("tileload",function(){ if(!tilesOk){ tilesOk=true; clearMapMsg(); } });
-  layer.on("tileerror",function(){ if(!tilesOk) mapMsg("Nu pot încărca harta (rețea/telefon blochează tile.openstreetmap.org).","#ff5b60"); });
+  layer.on("tileload",function(){ tLoad++; if(tLoad===1) clearMapMsg(); dbg(); });
+  layer.on("tileerror",function(){ tErr++; if(tLoad===0) mapMsg("Dalele nu se încarcă (/tiles). tErr="+tErr,"#ff5b60"); dbg(); });
   layer.addTo(map);
   mapMsg("Se încarcă harta…","#b9ccc0");
-  setTimeout(function(){ if(!tilesOk) mapMsg("Harta nu s-a încărcat — pare o problemă de rețea în aplicație.","#ff5b60"); },6000);
+  setTimeout(function(){ if(tLoad===0) mapMsg("Harta nu s-a încărcat (tiles:"+tLoad+"/"+tErr+").","#ff5b60"); },6000);
 }
 function initMap(){
+  dbg();
   if(typeof L==="undefined"){ mapMsg("Nu s-a încărcat motorul de hartă (Leaflet).","#ff5b60"); return; }
   try{
     map=L.map("map",{zoomControl:false}).setView([45.9432,24.9668],7);
     addBase();
     L.control.zoom({position:"bottomright"}).addTo(map);
-    var fix=function(){ if(map) map.invalidateSize(); };
-    setTimeout(fix,200); setTimeout(fix,600); setTimeout(fix,1500);
+    var fix=function(){ if(map) map.invalidateSize(); dbg(); };
+    [100,300,600,1200,2500,4000].forEach(function(t){ setTimeout(fix,t); });
     window.addEventListener("resize",fix);
     window.addEventListener("load",fix);
-  }catch(e){ mapMsg("Eroare hartă: "+(e&&e.message?e.message:e),"#ff5b60"); }
+    if(window.ResizeObserver){ try{ new ResizeObserver(fix).observe(document.getElementById("map")); }catch(e){} }
+  }catch(e){ mapMsg("Eroare hartă: "+(e&&e.message?e.message:e),"#ff5b60"); dbg(); }
 }
 
 // ---- înregistrare ----
