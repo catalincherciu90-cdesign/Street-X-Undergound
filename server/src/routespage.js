@@ -39,6 +39,7 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
     display:grid;place-items:center;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5)}
   #styleBtn:active{transform:scale(.94)}
   .flagmk{background:none!important;border:none!important}
+  .arrowmk{background:none!important;border:none!important}
   .flagmk .fe{font-size:24px;line-height:1;filter:drop-shadow(0 1px 2px #000);text-align:center}
   .flagmk .fl{font:700 9px/1 "Rajdhani",system-ui,sans-serif;letter-spacing:.06em;color:#08130d;padding:2px 6px;border-radius:6px;margin-top:2px;text-align:center;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.5)}
 
@@ -420,11 +421,23 @@ function initMap(){
 }
 
 // ---- poziția mea (pin live + centrare) ----
-let locWatch=null, myPos=null, locCentered=false, meAcc=null;
-function setMe(ll, acc){
+let locWatch=null, myPos=null, locCentered=false, meAcc=null, meHeading=0;
+// săgeată orientată (verde pentru mine, portocalie pentru prieteni)
+function arrowIcon(color, deg){
+  var html='<div style="transform:rotate('+deg+'deg);filter:drop-shadow(0 0 5px '+color+'cc)">'
+    +'<svg width="30" height="30" viewBox="0 0 24 24"><path d="M12 2 L20 21 L12 16.5 L4 21 Z" fill="'+color+'" stroke="#04120b" stroke-width="1.3" stroke-linejoin="round"/></svg></div>';
+  return L.divIcon({className:"arrowmk",html:html,iconSize:[30,30],iconAnchor:[15,15]});
+}
+function headingOf(p, prev){
+  if(p.coords.heading!=null && !isNaN(p.coords.heading) && p.coords.speed!=null && p.coords.speed>=1) return p.coords.heading;
+  if(prev){ var mv=haversine(prev[0],prev[1],p.coords.latitude,p.coords.longitude); if(mv>3) return bearing(prev[0],prev[1],p.coords.latitude,p.coords.longitude); }
+  return null;
+}
+function setMe(ll, acc, heading){
   if(!map) return;
-  if(!meDot){ meDot=L.circleMarker(ll,{radius:8,color:"#fff",weight:3,fillColor:"#22e08a",fillOpacity:1,className:"glowline"}).addTo(map); }
-  else meDot.setLatLng(ll);
+  if(heading!=null && !isNaN(heading)) meHeading=heading;
+  if(!meDot){ meDot=L.marker(ll,{icon:arrowIcon("#22e08a",meHeading),zIndexOffset:1000}).addTo(map); }
+  else { meDot.setLatLng(ll); meDot.setIcon(arrowIcon("#22e08a",meHeading)); }
   if(acc && acc<3000){
     if(!meAcc){ meAcc=L.circle(ll,{radius:acc,color:"#22e08a",weight:1,opacity:.35,fillColor:"#22e08a",fillOpacity:.07}).addTo(map); }
     else { meAcc.setLatLng(ll); meAcc.setRadius(acc); }
@@ -433,8 +446,9 @@ function setMe(ll, acc){
 function startLocate(){
   if(!navigator.geolocation || locWatch!=null || !map) return;
   locWatch=navigator.geolocation.watchPosition(function(p){
+    var hd=headingOf(p, myPos);
     myPos=[p.coords.latitude,p.coords.longitude];
-    setMe(myPos, p.coords.accuracy);
+    setMe(myPos, p.coords.accuracy, hd);
     setSpeed(kmhOf(p));
     if(!locCentered && !navOn){ locCentered=true; map.setView(myPos, 16); }
   }, function(){}, {enableHighAccuracy:true, maximumAge:5000, timeout:15000});
@@ -467,8 +481,7 @@ function onPos(p){
   var lat=p.coords.latitude,lng=p.coords.longitude;
   var spd=(p.coords.speed!=null&&p.coords.speed>=0)?Math.round(p.coords.speed*3.6):0;
   document.getElementById("stSpd").textContent=spd; setSpeed(spd);
-  if(!meDot){ meDot=L.circleMarker([lat,lng],{radius:8,color:"#fff",weight:3,fillColor:"#22e08a",fillOpacity:1}).addTo(map); }
-  else meDot.setLatLng([lat,lng]);
+  setMe([lat,lng], null, headingOf(p, recPts.length?recPts[recPts.length-1]:myPos));
   if(!recording){ map.setView([lat,lng],15); return; }
   var last=recPts[recPts.length-1];
   if(last){ var d=haversine(last[0],last[1],lat,lng); if(d<3) return; if(d<200) recDist+=d; }
@@ -823,13 +836,12 @@ function navPos(p){
   var lat=p.coords.latitude, lng=p.coords.longitude;
   var spd=(p.coords.speed!=null&&p.coords.speed>=0)?Math.round(p.coords.speed*3.6):0;
   setSpeed(spd);
-  if(!meDot){ meDot=L.circleMarker([lat,lng],{radius:8,color:"#fff",weight:3,fillColor:"#22e08a",fillOpacity:1}).addTo(map); }
-  else meDot.setLatLng([lat,lng]);
-  if(navFollow) navSetView([lat,lng]);
   // direcția în care e orientat șoferul
   var heading=null;
   if(p.coords.heading!=null && !isNaN(p.coords.heading) && spd>=2) heading=p.coords.heading;
   else if(lastNavPos){ var mv=haversine(lastNavPos[0],lastNavPos[1],lat,lng); if(mv>3) heading=bearing(lastNavPos[0],lastNavPos[1],lat,lng); }
+  setMe([lat,lng], null, heading);
+  if(navFollow) navSetView([lat,lng]);
   // decide faza la prima poziție: dacă ești departe de start, ghidează-te întâi acolo
   if(navStage===null){
     var d0=haversine(lat,lng,startPt[0],startPt[1]);
@@ -986,16 +998,18 @@ function renderParty(){
 
 // ---- Prieteni (listă, cod, party fără cod, poziții live, mesaje) ----
 let friends=[], myCode=null, friendMarkers={}, friendsTimer=null, chatWith=null, chatTimer=null;
+let friendPrev={}, friendHeading={};
 function clearFriendMarkers(){
   Object.keys(friendMarkers).forEach(function(k){ if(map) map.removeLayer(friendMarkers[k]); });
-  friendMarkers={};
+  friendMarkers={}; friendPrev={}; friendHeading={};
 }
-function friendIconDiv(name){
+function friendArrowIcon(name, deg){
+  var c="#ff8a3d";
   var html='<div style="display:flex;flex-direction:column;align-items:center">'
-    +'<div style="width:16px;height:16px;border-radius:50%;background:#4d9fff;border:2px solid #fff;box-shadow:0 0 8px #4d9fff"></div>'
-    +'<div style="margin-top:2px;background:rgba(10,15,13,.88);color:#fff;font:700 9px/1 \\'Rajdhani\\',sans-serif;padding:2px 6px;border-radius:6px;white-space:nowrap;border:1px solid #4d9fff">'+esc(name||"?")+'</div>'
+    +'<div style="transform:rotate('+deg+'deg);filter:drop-shadow(0 0 5px '+c+'cc)"><svg width="28" height="28" viewBox="0 0 24 24"><path d="M12 2 L20 21 L12 16.5 L4 21 Z" fill="'+c+'" stroke="#160a02" stroke-width="1.3" stroke-linejoin="round"/></svg></div>'
+    +'<div style="margin-top:1px;background:rgba(10,15,13,.88);color:#fff;font:700 9px/1 \\'Rajdhani\\',sans-serif;padding:2px 6px;border-radius:6px;white-space:nowrap;border:1px solid '+c+'">'+esc(name||"?")+'</div>'
     +'</div>';
-  return L.divIcon({className:"flagmk",html:html,iconSize:[64,36],iconAnchor:[32,10]});
+  return L.divIcon({className:"arrowmk",html:html,iconSize:[60,42],iconAnchor:[30,14]});
 }
 function drawFriendMarkers(){
   if(!map || tab!=="friends") return;
@@ -1003,8 +1017,11 @@ function drawFriendMarkers(){
   friends.forEach(function(f){
     if(f.lat==null||f.lng==null) return;
     keep[f.id]=1;
-    if(friendMarkers[f.id]) friendMarkers[f.id].setLatLng([f.lat,f.lng]);
-    else friendMarkers[f.id]=L.marker([f.lat,f.lng],{icon:friendIconDiv(f.name),zIndexOffset:850}).addTo(map);
+    var prev=friendPrev[f.id], deg=friendHeading[f.id]||0;
+    if(prev){ var mv=haversine(prev[0],prev[1],f.lat,f.lng); if(mv>4){ deg=bearing(prev[0],prev[1],f.lat,f.lng); friendHeading[f.id]=deg; } }
+    friendPrev[f.id]=[f.lat,f.lng];
+    if(friendMarkers[f.id]){ friendMarkers[f.id].setLatLng([f.lat,f.lng]); friendMarkers[f.id].setIcon(friendArrowIcon(f.name,deg)); }
+    else friendMarkers[f.id]=L.marker([f.lat,f.lng],{icon:friendArrowIcon(f.name,deg),zIndexOffset:850}).addTo(map);
   });
   Object.keys(friendMarkers).forEach(function(k){ if(!keep[k]){ if(map)map.removeLayer(friendMarkers[k]); delete friendMarkers[k]; } });
 }
