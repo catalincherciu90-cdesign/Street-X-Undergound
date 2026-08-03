@@ -1,0 +1,22 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="128dp"
+    android:height="104dp"
+    android:viewportWidth="128"
+    android:viewportHeight="104">
+    <!-- linii de viteză -->
+    <path android:fillColor="#6cc24a" android:pathData="M2,34 h30 v7 h-30 z" />
+    <path android:fillColor="#6cc24a" android:pathData="M10,48 h30 v7 h-30 z" />
+    <path android:fillColor="#6cc24a" android:pathData="M2,62 h24 v7 h-24 z" />
+    <!-- inel verde -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#4ea72e"
+        android:strokeWidth="8"
+        android:pathData="M44,50 a34,34 0 1,1 68,0 a34,34 0 1,1 -68,0" />
+    <!-- drum -->
+    <path android:fillColor="#1c2b24" android:pathData="M54,92 L70,60 L86,60 L96,92 Z" />
+    <!-- colet -->
+    <path android:fillColor="#243b30" android:pathData="M78,20 L98,31 L78,42 L58,31 Z" />
+    <path android:fillColor="#1c2b24" android:pathData="M58,31 L78,42 L78,64 L58,53 Z" />
+    <path android:fillColor="#16211c" android:pathData="M98,31 L78,42 L78,64 L98,53 Z" />
+</vector>

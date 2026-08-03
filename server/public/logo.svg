@@ -1,0 +1,19 @@
+<svg viewBox="0 0 128 104" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="DropLy Courier">
+  <!-- linii de viteză -->
+  <rect x="2"  y="34" width="30" height="7" rx="3.5" fill="#6cc24a"/>
+  <rect x="10" y="48" width="30" height="7" rx="3.5" fill="#6cc24a"/>
+  <rect x="2"  y="62" width="24" height="7" rx="3.5" fill="#6cc24a"/>
+  <!-- inel verde -->
+  <circle cx="78" cy="50" r="34" fill="none" stroke="#4ea72e" stroke-width="8"/>
+  <!-- drum -->
+  <path d="M54 92 L70 60 L86 60 L96 92 Z" fill="#1c2b24"/>
+  <path d="M74 62 L82 62 L86 90 L70 90 Z" fill="none"/>
+  <line x1="76" y1="66" x2="74" y2="76" stroke="#e6edf3" stroke-width="2.4" stroke-dasharray="4 4"/>
+  <!-- colet -->
+  <g>
+    <path d="M78 20 L98 31 L78 42 L58 31 Z" fill="#243b30"/>
+    <path d="M58 31 L78 42 L78 64 L58 53 Z" fill="#1c2b24"/>
+    <path d="M98 31 L78 42 L78 64 L98 53 Z" fill="#16211c"/>
+    <path d="M78 42 L78 64" stroke="#4ea72e" stroke-width="1.4" opacity=".5"/>
+  </g>
+</svg>
