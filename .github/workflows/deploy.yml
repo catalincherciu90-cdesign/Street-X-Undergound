@@ -1,13 +1,9 @@
 name: Deploy platform (Cloudflare)
 
+# Deploy-ul se face prin Cloudflare Workers Builds (integrarea Git din dashboard).
+# Acest workflow rămâne disponibil doar manual, ca alternativă / backup.
 on:
   workflow_dispatch:
-  push:
-    branches: [ "main", "claude/**" ]
-    paths:
-      - "server/**"
-      - "android/**"
-      - ".github/workflows/deploy.yml"
 
 env:
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
