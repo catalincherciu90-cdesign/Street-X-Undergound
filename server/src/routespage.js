@@ -146,6 +146,15 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
     border-radius:22px;padding:11px 18px;font-weight:700;font-family:"Rajdhani",sans-serif;font-size:14.5px;
     letter-spacing:.02em;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.55)}
   #recenterBtn:active{transform:translateX(-50%) scale(.96)}
+  #ttBanner{position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);z-index:720;display:none;
+    text-align:center;font-family:"Orbitron",sans-serif;font-weight:800;line-height:1.15;pointer-events:none;
+    padding:16px 22px;border-radius:16px;background:rgba(6,10,8,.85);border:1px solid var(--line2);box-shadow:0 8px 30px rgba(0,0,0,.6)}
+  #ttBanner.show{display:block;animation:ttpop .3s ease-out}
+  #ttBanner.tt-speed{color:#eab54a;border-color:#eab54a;font-size:26px}
+  #ttBanner.tt-start{color:var(--acc);border-color:var(--acc);font-size:46px;letter-spacing:.1em}
+  #ttBanner.tt-finish{color:var(--cyan);border-color:var(--cyan);font-size:30px}
+  #ttBanner.tt-info{color:var(--t2);font-size:17px;font-family:"Rajdhani",sans-serif}
+  @keyframes ttpop{from{transform:translate(-50%,-50%) scale(.7);opacity:0}to{transform:translate(-50%,-50%) scale(1);opacity:1}}
   #clearBtn{position:absolute;left:12px;top:calc(12px + env(safe-area-inset-top));z-index:701;display:none;
     align-items:center;gap:6px;background:rgba(10,15,13,.92);border:1px solid var(--pink);color:var(--pink);
     border-radius:12px;padding:9px 13px;font-weight:700;font-family:"Rajdhani",sans-serif;font-size:13.5px;cursor:pointer;
@@ -221,6 +230,7 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
   </div>
   <button id="navExit" onclick="exitNav()"><span data-ic="x"></span> Ieși</button>
   <button id="recenterBtn" onclick="recenterNav()"><span data-ic="nav" data-sz="16"></span> Recentrează</button>
+  <div id="ttBanner"></div>
   <button id="clearBtn" onclick="clearRouteView()"><span data-ic="x" data-sz="15"></span> Anulează</button>
   <div id="speedo"><b id="spVal">0</b><span>km/h</span></div>
   <button id="styleBtn" onclick="cycleStyle()" title="Stil hartă">🗺️</button>
@@ -321,7 +331,8 @@ const ICP={
   friend:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>',
   msg:'<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
   send:'<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>',
-  plus:'<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>'
+  plus:'<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  timer:'<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2"/><path d="M9 2h6"/>'
 };
 function ic(n,s){var x=s||18;return '<svg class="ic" width="'+x+'" height="'+x+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+(ICP[n]||"")+'</svg>';}
 function fillIcons(r){(r||document).querySelectorAll("[data-ic]").forEach(function(el){el.innerHTML=ic(el.getAttribute("data-ic"),el.getAttribute("data-sz")||20);});}
@@ -527,7 +538,8 @@ async function loadList(){
 }
 function routeItemHtml(rt,mine){
   var pub=rt.is_public?'<span class="rbadge pub">Public</span>':'<span class="rbadge priv">Privat</span>';
-  var meta=fmtKm(rt.distance_m)+' km'+(rt.duration_s?' · '+fmtDur(rt.duration_s):'');
+  var best=ttBest[rt.id];
+  var meta=fmtKm(rt.distance_m)+' km'+(rt.duration_s?' · '+fmtDur(rt.duration_s):'')+(best?' · ⏱ '+fmtClock(best):'');
   var h='<div class="ritem'+(selRoute===rt.id?' sel':'')+'" onclick="viewRoute('+rt.id+',this)">'
     +'<div class="rtop"><span class="rname">'+esc(rt.name)+'</span>'+pub+'</div>'
     +'<div class="rmeta">'+meta+'</div>'
@@ -535,6 +547,7 @@ function routeItemHtml(rt,mine){
     +'<div class="racts" onclick="event.stopPropagation()">'
     +'<button class="rbtn cyan" onclick="viewRoute('+rt.id+')">'+ic("eye",14)+' Vezi</button>'
     +'<button class="rbtn" onclick="startNav('+rt.id+')">'+ic("nav",14)+' Condu</button>'
+    +'<button class="rbtn" onclick="startTimeTrial('+rt.id+')">'+ic("timer",14)+' Contra-timp</button>'
     +'<button class="rbtn" onclick="startParty('+rt.id+')">'+ic("users",14)+' Party</button>';
   if(mine){
     h+='<button class="rbtn" onclick="togglePublic('+rt.id+','+(rt.is_public?0:1)+')">'+ic(rt.is_public?"lock":"unlock",14)+(rt.is_public?' Fă privat':' Fă public')+'</button>'
@@ -605,6 +618,71 @@ let navOn=false, navRoute=[], navWatch=null, lastNavPos=null;
 let navStage=null, startPt=null, approachLine=null, approachPath=[], approachSteps=[], approachStepIdx=1;
 // urmărire hartă: harta te urmează doar până când o miști tu (pan/zoom)
 let navFollow=true, selfMove=false, navZoomed=false;
+// contra-timp (time trial): start lansat + cronometru START→FINISH
+let ttMode=false, ttRouteId=null, ttStarted=false, ttFinished=false, ttAnnounced=false, ttClockTimer=null, ttBannerTimer=null;
+function loadTtBest(){ try{ return JSON.parse(localStorage.getItem("sxu_tt_best")||"{}")||{}; }catch(e){ return {}; } }
+function saveTtBest(o){ ttBest=o; try{ localStorage.setItem("sxu_tt_best",JSON.stringify(o)); }catch(e){} }
+let ttBest=loadTtBest();
+function fmtClock(s){ var m=Math.floor(s/60), ss=(s-m*60); return m+":"+(ss<10?"0":"")+ss.toFixed(2); }
+function ttBanner(html,kind,sticky){
+  var b=document.getElementById("ttBanner"); if(!b) return;
+  b.innerHTML=html; b.className="tt-"+(kind||"info")+" show";
+  if(ttBannerTimer){ clearTimeout(ttBannerTimer); ttBannerTimer=null; }
+  if(!sticky){ ttBannerTimer=setTimeout(function(){ b.classList.remove("show"); }, kind==="start"?2200:6000); }
+}
+function ttHideBanner(){ var b=document.getElementById("ttBanner"); if(b) b.classList.remove("show"); if(ttBannerTimer){ clearTimeout(ttBannerTimer); ttBannerTimer=null; } }
+function startTtClock(){ stopTtClock(); ttClockTimer=setInterval(function(){
+  if(!ttStarted||ttFinished) return;
+  var el=document.getElementById("navRemain"); if(el){ el.textContent=fmtClock((Date.now()-ttT0)/1000); el.className=""; }
+},100); }
+function stopTtClock(){ if(ttClockTimer){ clearInterval(ttClockTimer); ttClockTimer=null; } }
+let ttT0=0;
+function ttStartRun(){
+  if(!ttMode||ttStarted) return;
+  ttStarted=true; ttT0=Date.now();
+  ttBanner("START!","start",false);
+  startTtClock();
+}
+function ttFinishRun(){
+  if(!ttMode||!ttStarted||ttFinished) return;
+  ttFinished=true; stopTtClock();
+  var s=(Date.now()-ttT0)/1000;
+  var el=document.getElementById("navRemain"); if(el){ el.textContent=fmtClock(s); el.className="arrived"; }
+  var prev=ttBest[ttRouteId]; var rec=(!prev||s<prev);
+  if(rec){ ttBest[ttRouteId]=s; saveTtBest(ttBest); }
+  var sub=rec?"<br><span style='color:#22e08a'>RECORD NOU!</span>":(prev?"<br><span style='color:#b9ccc0;font-size:16px'>record: "+fmtClock(prev)+"</span>":"");
+  ttBanner("FINISH<br>"+fmtClock(s)+sub,"finish",true);
+  toast(rec?"Record nou! 🏁 "+fmtClock(s):"Timp: "+fmtClock(s));
+}
+function parseMaxspeed(ms){
+  if(ms==null) return null; ms=(""+ms).toLowerCase().trim();
+  var mph=ms.indexOf("mph")>=0;
+  var num=parseInt(ms,10);
+  if(!isNaN(num)&&num>0) return mph?Math.round(num*1.60934):num;
+  var map={"ro:urban":50,"ro:rural":90,"ro:trunk":100,"ro:motorway":130,"ro:living_street":20,
+    "urban":50,"rural":90,"trunk":100,"motorway":130,"living_street":20,"walk":5,"none":130};
+  var k=ms.replace(/\\s+/g,"");
+  if(map[ms]!=null) return map[ms];
+  if(map[k]!=null) return map[k];
+  return null;
+}
+async function fetchSpeedLimit(lat,lng){
+  try{
+    var q="[out:json][timeout:8];way(around:60,"+lat+","+lng+")[highway][maxspeed];out tags 3;";
+    var r=await fetch("https://overpass-api.de/api/interpreter",{method:"POST",headers:{"Content-Type":"text/plain"},body:q});
+    var d=await r.json();
+    if(d&&d.elements){ for(var i=0;i<d.elements.length;i++){ var v=parseMaxspeed(d.elements[i].tags&&d.elements[i].tags.maxspeed); if(v) return v; } }
+  }catch(e){}
+  return null;
+}
+async function ttAnnounce(){
+  ttAnnounced=true;
+  ttBanner("Aduc limita zonei…","info",false);
+  var v=await fetchSpeedLimit(startPt[0],startPt[1]);
+  if(!ttMode||ttStarted) return;
+  if(v) ttBanner("Start lansat<br>intră la "+v+" km/h","speed",false);
+  else ttBanner("Start lansat<br>intră la viteza legală a zonei","speed",false);
+}
 function navSetView(ll){
   if(!map) return;
   selfMove=true;
@@ -628,12 +706,15 @@ function nearestIdx(lat,lng){
   for(var i=0;i<navRoute.length;i++){ var dd=haversine(lat,lng,navRoute[i][0],navRoute[i][1]); if(dd<bd){bd=dd;bi=i;} }
   return bi;
 }
-async function startNav(id){
+function startTimeTrial(id){ startNav(id,true); }
+async function startNav(id,tt){
   try{
     var r=await fetch(API+"/api/my/routes/"+id,{headers:hdr()});
     var d=await r.json();
     if(!r.ok||!d.geometry||d.geometry.length<2){ toast(d.error||"Traseu indisponibil."); return; }
     navRoute=d.geometry; lastNavPos=null; navOn=true;
+    ttMode=!!tt; ttRouteId=id; ttStarted=false; ttFinished=false; ttAnnounced=false; stopTtClock(); ttHideBanner();
+    if(ttMode) toast("Contra-timp — du-te la START, cronometrez de la linia de start.");
     navStage=null; startPt=navRoute[0]; approachPath=[]; approachSteps=[]; approachStepIdx=1;
     navFollow=true; navZoomed=false;
     var rb=document.getElementById("recenterBtn"); if(rb) rb.style.display="none";
@@ -653,6 +734,7 @@ async function startNav(id){
 }
 function exitNav(){
   navOn=false; navStage=null;
+  ttMode=false; ttStarted=false; ttFinished=false; stopTtClock(); ttHideBanner();
   document.body.classList.remove("nav-on"); document.body.classList.remove("approach-on");
   var rb=document.getElementById("recenterBtn"); if(rb) rb.style.display="none";
   if(approachLine){ map.removeLayer(approachLine); approachLine=null; }
@@ -710,11 +792,13 @@ function switchToRoute(lat,lng){
   document.body.classList.remove("approach-on");
   if(approachLine){ map.removeLayer(approachLine); approachLine=null; }
   approachPath=[]; approachSteps=[];
-  toast("Ai ajuns la start! 🏁 Traseul începe.");
+  if(ttMode) ttStartRun(); else toast("Ai ajuns la start! 🏁 Traseul începe.");
   routeGuide(lat,lng,0,null);
 }
 function approachGuide(lat,lng,spd,heading){
   var dStart=haversine(lat,lng,startPt[0],startPt[1]);
+  // contra-timp: cu ~1 km înainte de start, anunță viteza de intrare (limita zonei)
+  if(ttMode && !ttAnnounced && dStart<=1050 && dStart>45) ttAnnounce();
   if(dStart<40){ switchToRoute(lat,lng); return; }
   var tgt=startPt, remain=dStart, nextTxt="spre START";
   if(approachPath.length>1){
@@ -750,7 +834,7 @@ function navPos(p){
   if(navStage===null){
     var d0=haversine(lat,lng,startPt[0],startPt[1]);
     if(d0>60){ navStage="approach"; document.body.classList.add("approach-on"); buildApproach(lat,lng); }
-    else navStage="route";
+    else { navStage="route"; if(ttMode) ttStartRun(); }
   }
   if(navStage==="approach"){ approachGuide(lat,lng,spd,heading); lastNavPos=[lat,lng]; return; }
   routeGuide(lat,lng,spd,heading);
@@ -769,6 +853,12 @@ function routeGuide(lat,lng,spd,heading){
   for(var i=idx;i<navRoute.length-1;i++) rem+=haversine(navRoute[i][0],navRoute[i][1],navRoute[i+1][0],navRoute[i+1][1]);
   var end=navRoute[navRoute.length-1], toEnd=haversine(lat,lng,end[0],end[1]);
   var remEl=document.getElementById("navRemain"), nextEl=document.getElementById("navNext");
+  // mod contra-timp: cronometrul deține afișajul; oprim la FINISH
+  if(ttMode && ttStarted){
+    if(toEnd<20 && !ttFinished){ ttFinishRun(); if(arrow) arrow.style.opacity="0.3"; return; }
+    if(!ttFinished){ if(nextEl) nextEl.textContent="· "+spd+" km/h · contra-timp"; if(arrow) arrow.style.opacity="1"; }
+    return;
+  }
   if(toEnd<20){
     if(remEl){ remEl.textContent="Ai ajuns"; remEl.className="arrived"; }
     if(nextEl) nextEl.textContent="";
