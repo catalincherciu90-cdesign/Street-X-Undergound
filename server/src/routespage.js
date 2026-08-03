@@ -29,8 +29,6 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
 
   #map{flex:1 1 auto;position:relative;background:#0a1418;min-height:240px}
   .leaflet-container{background:#0a1418}
-  /* look „Underground" pe tile-urile raster: uscat oliv, drumuri albe */
-  .leaflet-tile-pane{filter:brightness(1.28) contrast(1.8) saturate(.25) sepia(.18) hue-rotate(115deg)}
   .glowline{filter:drop-shadow(0 0 3px rgba(125,249,255,.9)) drop-shadow(0 0 7px rgba(34,224,138,.5))}
 
   /* stats live peste hartă */
