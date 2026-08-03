@@ -158,6 +158,37 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
     box-shadow:0 0 14px rgba(40,224,255,.35),inset 0 0 10px rgba(40,224,255,.15)}
   #speedo b{font-family:var(--mono);font-size:23px;line-height:1;color:#eafcff;font-weight:700}
   #speedo span{font-size:8.5px;letter-spacing:.08em;color:var(--cyan);margin-top:2px;text-transform:uppercase}
+
+  .perflink{width:100%;margin-top:10px;background:rgba(18,26,22,.6);border:1px solid var(--line2);color:var(--cyan);
+    border-radius:12px;padding:11px;font-weight:700;font-family:"Rajdhani",sans-serif;font-size:14px;cursor:pointer;letter-spacing:.02em}
+  .perflink:active{transform:scale(.98)}
+  /* Mod performanță (Dragy-like) */
+  #perfPanel{position:fixed;inset:0;z-index:3000;display:none;flex-direction:column;
+    background:radial-gradient(circle at 50% 0%,#0e1a14,#060a08 70%);
+    padding:max(14px,env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom))}
+  #perfPanel.on{display:flex}
+  .perfhead{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+  .perfhead h2{font-family:"Orbitron",sans-serif;font-size:15px;letter-spacing:.12em;color:var(--acc);flex:1;margin:0}
+  .perfhead .px{background:none;border:none;color:var(--t2);cursor:pointer;padding:6px;display:grid;place-items:center}
+  .perfspeed{text-align:center;margin:8px 0 0}
+  .perfspeed b{font-family:var(--mono);font-size:62px;line-height:1;color:#eafcff;font-weight:700;text-shadow:0 0 18px rgba(40,224,255,.5)}
+  .perfspeed span{display:block;font-size:11px;letter-spacing:.2em;color:var(--cyan);text-transform:uppercase;margin-top:2px}
+  .perfelapsed{text-align:center;font-family:var(--mono);font-size:28px;color:#eab54a;min-height:32px;margin-top:6px}
+  .perfstatus{text-align:center;font-family:"Rajdhani",sans-serif;font-weight:700;font-size:14.5px;color:var(--t2);min-height:20px;margin:6px 0}
+  .perfstatus.armed{color:var(--pink)} .perfstatus.run{color:var(--acc)}
+  .perfgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}
+  .perfcard{background:rgba(18,26,22,.85);border:1px solid var(--line2);border-radius:14px;padding:11px 12px}
+  .perfcard .pl{font-size:10.5px;color:var(--t3);text-transform:uppercase;letter-spacing:.05em}
+  .perfcard .pv{font-family:var(--mono);font-size:24px;color:#eafcff;margin-top:3px}
+  .perfcard .pv small{font-size:11px;color:var(--t3)}
+  .perfcard .pb{font-size:10.5px;color:var(--acc);margin-top:3px;min-height:14px}
+  .perfcard.hit{border-color:var(--acc);box-shadow:0 0 14px rgba(34,224,138,.25)}
+  .perfbtns{margin-top:auto;display:flex;gap:10px}
+  .perfbtns button{flex:1;height:54px;border-radius:14px;font-weight:800;font-size:15.5px;font-family:"Rajdhani",sans-serif;
+    letter-spacing:.03em;cursor:pointer;border:1px solid var(--line2);background:var(--s3);color:var(--t1)}
+  .perfbtns .arm{background:linear-gradient(180deg,#29e694,#1ec97e);color:#08130d;border-color:transparent;flex:2}
+  .perfbtns .arm.armed{background:linear-gradient(180deg,#ff2d95,#d81f7d);color:#fff}
+  .perfnote{font-size:10.5px;color:var(--t3);text-align:center;margin-top:8px;line-height:1.45}
   #navExit{position:absolute;left:12px;top:calc(12px + env(safe-area-inset-top));z-index:701;display:none;
     align-items:center;gap:6px;background:rgba(10,15,13,.9);border:1px solid var(--line2);color:var(--t1);
     border-radius:12px;padding:10px 13px;font-weight:600;font-family:"Rajdhani",system-ui,sans-serif;cursor:pointer}
@@ -202,6 +233,7 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
   <div class="recbar">
     <button class="recbtn start" id="recBtn" onclick="toggleRec()"><span data-ic="rec"></span> Start înregistrare</button>
   </div>
+  <button class="perflink" onclick="openPerf()">⏱️ Mod performanță — 0-100, 1/4 milă, 100-200…</button>
 </div>
 
 <!-- sheet LISTE (mine / bibliotecă) -->
@@ -248,6 +280,20 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
       <button class="chatsend" onclick="sendFriendMsg()"><span data-ic="send" data-sz="18"></span></button>
     </div>
   </div>
+</div>
+
+<!-- Mod performanță (Dragy-like) -->
+<div id="perfPanel">
+  <div class="perfhead"><h2>PERFORMANȚĂ</h2><button class="px" onclick="closePerf()"><span data-ic="x" data-sz="20"></span></button></div>
+  <div class="perfspeed"><b id="perfSpd">0</b><span>km/h</span></div>
+  <div class="perfelapsed" id="perfElapsed">0.00 s</div>
+  <div class="perfstatus" id="perfStatus">Oprește-te complet, apoi apasă „Armează".</div>
+  <div class="perfgrid" id="perfGrid"></div>
+  <div class="perfbtns">
+    <button class="arm" id="perfArmBtn" onclick="armPerf()">Armează</button>
+    <button onclick="resetPerfBest()">Șterge recordurile</button>
+  </div>
+  <div class="perfnote">Măsurare pe baza GPS-ului telefonului (~1 Hz) — valorile sunt orientative. Folosește doar pe drum privat/pistă, în siguranță.</div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1000,6 +1046,127 @@ async function sendFriendMsg(){
     var r=await fetch(API+"/api/my/friends/messages/"+chatWith,{method:"POST",headers:Object.assign({"Content-Type":"application/json"},hdr()),body:JSON.stringify({text:text})});
     if(r.ok) loadChat(true); else { var d=await r.json(); toast(d.error||"Nu s-a trimis."); }
   }catch(e){ toast("Eroare de rețea."); }
+}
+
+// ---- Mod Performanță (Dragy-like): 0-100, 1/4 milă, 400/1000 m, 100-200 ----
+const PERF_METRICS=[
+  {key:"0-100",   label:"0–100 km/h",  type:"speed"},
+  {key:"100-200", label:"100–200 km/h",type:"speed"},
+  {key:"400m",    label:"0–400 m",     type:"dist", d:400},
+  {key:"402m",    label:"1/4 milă",    type:"dist", d:402.336},
+  {key:"1000m",   label:"0–1000 m",    type:"dist", d:1000}
+];
+let perfOn=false, perfWatch=null, perfArmed=false, perfRunning=false;
+let perfT0=0, perfDist=0, perfLast=null, perfLastT=0, perfLastSpd=0;
+let perfCross={}, perfDistMark={};
+function loadPerfBest(){ try{ return JSON.parse(localStorage.getItem("sxu_perf_best")||"{}")||{}; }catch(e){ return {}; } }
+function savePerfBest(){ try{ localStorage.setItem("sxu_perf_best",JSON.stringify(perfBest)); }catch(e){} }
+let perfBest=loadPerfBest();
+function renderPerfGrid(){
+  var g=document.getElementById("perfGrid"); if(!g) return;
+  g.innerHTML=PERF_METRICS.map(function(m){
+    return '<div class="perfcard" id="pc-'+m.key+'"><div class="pl">'+m.label+'</div>'
+      +'<div class="pv" id="pv-'+m.key+'">—</div><div class="pb" id="pb-'+m.key+'"></div></div>';
+  }).join("");
+  updatePerfBestLabels();
+}
+function updatePerfBestLabels(){
+  PERF_METRICS.forEach(function(m){ var b=document.getElementById("pb-"+m.key); if(!b) return;
+    var v=perfBest[m.key]; b.textContent=v?("Record: "+v.toFixed(2)+" s"):""; });
+}
+function setPerfCard(key,sec,trap){
+  var el=document.getElementById("pv-"+key); if(!el) return;
+  el.innerHTML=sec.toFixed(2)+' <small>s</small>'+(trap!=null?(' · '+Math.round(trap)+' <small>km/h</small>'):'');
+  var c=document.getElementById("pc-"+key); if(c) c.classList.add("hit");
+}
+function onPerfCross(){
+  if(perfCross[100]) setPerfCard("0-100",(perfCross[100].t-perfT0)/1000,null);
+  if(perfCross[100]&&perfCross[200]) setPerfCard("100-200",(perfCross[200].t-perfCross[100].t)/1000,null);
+  PERF_METRICS.forEach(function(m){ if(m.type==="dist"&&perfDistMark[m.key]) setPerfCard(m.key,(perfDistMark[m.key].t-perfT0)/1000,perfDistMark[m.key].spd); });
+}
+function perfStep(t,pos,spd){
+  var dt=t-perfLastT; if(dt<=0) dt=1;
+  var seg=haversine(perfLast[0],perfLast[1],pos[0],pos[1]);
+  var d0=perfDist, d1=perfDist+seg;
+  [100,200].forEach(function(tg){
+    if(perfLastSpd<tg && spd>=tg && !perfCross[tg]){
+      var f=(spd>perfLastSpd)?((tg-perfLastSpd)/(spd-perfLastSpd)):1;
+      perfCross[tg]={t:perfLastT+f*dt,d:d0+f*seg}; onPerfCross();
+    }
+  });
+  PERF_METRICS.forEach(function(m){
+    if(m.type!=="dist"||perfDistMark[m.key]) return;
+    if(d1>=m.d && d0<m.d){
+      var f=seg>0?((m.d-d0)/seg):1;
+      perfDistMark[m.key]={t:perfLastT+f*dt,spd:perfLastSpd+f*(spd-perfLastSpd)}; onPerfCross();
+    }
+  });
+  perfDist=d1;
+  var el=document.getElementById("perfElapsed"); if(el) el.textContent=((t-perfT0)/1000).toFixed(2)+" s";
+  var allDist=PERF_METRICS.every(function(m){ return m.type!=="dist"||perfDistMark[m.key]; });
+  if((spd<3 && perfDist>30) || (perfDist>1200 && allDist)) finishPerf();
+}
+function perfPos(p){
+  if(!perfOn) return;
+  var t=p.timestamp||Date.now();
+  var lat=p.coords.latitude, lng=p.coords.longitude, pos=[lat,lng], spd;
+  if(p.coords.speed!=null&&p.coords.speed>=0) spd=p.coords.speed*3.6;
+  else if(perfLast){ var dd=haversine(perfLast[0],perfLast[1],lat,lng); var dtt=(t-perfLastT)/1000; spd=dtt>0?(dd/dtt*3.6):0; }
+  else spd=0;
+  var sv=document.getElementById("perfSpd"); if(sv) sv.textContent=Math.round(spd);
+  setSpeed(spd);
+  if(!perfRunning){
+    if(perfArmed && spd>=6 && perfLast){
+      perfRunning=true; perfT0=perfLastT; perfDist=0; perfCross={}; perfDistMark={};
+      var st=document.getElementById("perfStatus"); if(st){ st.textContent="Măsor… accelerează!"; st.className="perfstatus run"; }
+      perfStep(t,pos,spd);
+    }
+    perfLast=pos; perfLastT=t; perfLastSpd=spd; return;
+  }
+  perfStep(t,pos,spd);
+  perfLast=pos; perfLastT=t; perfLastSpd=spd;
+}
+function finishPerf(){
+  perfRunning=false; perfArmed=false;
+  var btn=document.getElementById("perfArmBtn"); if(btn){ btn.textContent="Armează"; btn.classList.remove("armed"); }
+  var st=document.getElementById("perfStatus"); if(st){ st.textContent='Gata! Oprește-te și „Armează" pentru alt rulaj.'; st.className="perfstatus"; }
+  var res={};
+  if(perfCross[100]) res["0-100"]=(perfCross[100].t-perfT0)/1000;
+  if(perfCross[100]&&perfCross[200]) res["100-200"]=(perfCross[200].t-perfCross[100].t)/1000;
+  PERF_METRICS.forEach(function(m){ if(m.type==="dist"&&perfDistMark[m.key]) res[m.key]=(perfDistMark[m.key].t-perfT0)/1000; });
+  var improved=false;
+  Object.keys(res).forEach(function(k){ if(res[k]>0 && (!perfBest[k]||res[k]<perfBest[k])){ perfBest[k]=res[k]; improved=true; } });
+  if(improved){ savePerfBest(); updatePerfBestLabels(); toast("Record nou! 🏁"); }
+}
+function armPerf(){
+  if(perfArmed && !perfRunning){
+    perfArmed=false;
+    var s0=document.getElementById("perfStatus"); if(s0){ s0.textContent='Oprește-te complet, apoi apasă „Armează".'; s0.className="perfstatus"; }
+    var b0=document.getElementById("perfArmBtn"); if(b0){ b0.textContent="Armează"; b0.classList.remove("armed"); }
+    return;
+  }
+  perfArmed=true; perfRunning=false; perfCross={}; perfDistMark={}; perfDist=0;
+  PERF_METRICS.forEach(function(m){ var v=document.getElementById("pv-"+m.key); if(v) v.textContent="—"; var c=document.getElementById("pc-"+m.key); if(c) c.classList.remove("hit"); });
+  var el=document.getElementById("perfElapsed"); if(el) el.textContent="0.00 s";
+  var st=document.getElementById("perfStatus"); if(st){ st.textContent="ARMAT — pornește tare când ești gata!"; st.className="perfstatus armed"; }
+  var btn=document.getElementById("perfArmBtn"); if(btn){ btn.textContent="Anulează armarea"; btn.classList.add("armed"); }
+}
+function resetPerfBest(){ if(!confirm("Ștergi toate recordurile de performanță?")) return; perfBest={}; savePerfBest(); updatePerfBestLabels(); toast("Recorduri șterse."); }
+function openPerf(){
+  var pp=document.getElementById("perfPanel"); if(!pp) return;
+  perfOn=true; perfArmed=false; perfRunning=false; perfLast=null; perfLastT=0; perfLastSpd=0; perfDist=0; perfCross={}; perfDistMark={};
+  renderPerfGrid();
+  var st=document.getElementById("perfStatus"); if(st){ st.textContent='Oprește-te complet, apoi apasă „Armează".'; st.className="perfstatus"; }
+  var el=document.getElementById("perfElapsed"); if(el) el.textContent="0.00 s";
+  var btn=document.getElementById("perfArmBtn"); if(btn){ btn.textContent="Armează"; btn.classList.remove("armed"); }
+  pp.classList.add("on");
+  if(navigator.geolocation){ perfWatch=navigator.geolocation.watchPosition(perfPos,function(){ toast("Nu pot citi GPS-ul."); },{enableHighAccuracy:true,maximumAge:0,timeout:20000}); }
+  else toast("GPS indisponibil pe acest dispozitiv.");
+}
+function closePerf(){
+  perfOn=false; perfArmed=false; perfRunning=false;
+  if(perfWatch!=null && navigator.geolocation){ navigator.geolocation.clearWatch(perfWatch); perfWatch=null; }
+  var pp=document.getElementById("perfPanel"); if(pp) pp.classList.remove("on");
 }
 
 if(!key){ document.getElementById("recHint").textContent="Lipsește codul dispozitivului — deschide din aplicație."; }
