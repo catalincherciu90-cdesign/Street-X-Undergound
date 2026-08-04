@@ -501,6 +501,19 @@ async function loadIncidents(){
     });
   }catch(e){}
 }
+// nivel de trafic pe un traseu salvat: cât e aglomerat și dacă merită acum
+async function checkRouteTraffic(id){
+  toast("Verific traficul pe traseu…");
+  try{
+    var r=await fetch(API+"/api/my/routes/"+id+"/traffic",{headers:hdr()}); var d=await r.json();
+    if(d.error==="no_key"){ toast("Trafic pe traseu: necesită cheia TomTom."); return; }
+    if(d.error){ toast("Nu pot calcula traficul acum."); return; }
+    var emoji=d.level==="liber"?"🟢":(d.level==="moderat"?"🟠":"🔴");
+    var dmin=Math.round((d.delay_s||0)/60);
+    var advice=d.level==="aglomerat"?"aglomerat — poate aștepți":(d.level==="moderat"?"merge, cu mică întârziere":"liber — merită acum!");
+    toast(emoji+" Trafic "+d.level+(dmin>0?(" · +"+dmin+" min"):"")+" — "+advice);
+  }catch(e){ toast("Eroare de rețea."); }
+}
 // benzinării în zonă (TomTom Search, prin proxy /poi) — necesită Search API pe cheie
 let poiLayer=null;
 function poiIcon(e){ return L.divIcon({className:"flagmk",html:'<div style="font-size:20px;filter:drop-shadow(0 1px 2px #000)">'+e+'</div>',iconSize:[24,24],iconAnchor:[12,12]}); }
@@ -784,6 +797,7 @@ function routeItemHtml(rt,mine){
     +'<div class="racts" onclick="event.stopPropagation()">'
     +'<button class="rbtn cyan" onclick="viewRoute('+rt.id+')">'+ic("eye",14)+' Vezi</button>'
     +'<button class="rbtn" onclick="startNav('+rt.id+')">'+ic("nav",14)+' Condu</button>'
+    +'<button class="rbtn" onclick="checkRouteTraffic('+rt.id+')">🚦 Trafic</button>'
     +'<button class="rbtn" onclick="startTimeTrial('+rt.id+')">'+ic("timer",14)+' Contra-timp</button>'
     +'<button class="rbtn" onclick="startParty('+rt.id+')">'+ic("users",14)+' Party</button>';
   if(mine){
@@ -976,6 +990,7 @@ async function startNav(id,tt){
     setTimeout(function(){ if(map){ map.invalidateSize(); selfMove=true; map.fitBounds(L.polyline(navRoute).getBounds().pad(0.2)); } },120);
     if(!navigator.geolocation){ toast("GPS indisponibil pe acest dispozitiv."); return; }
     navWatch=navigator.geolocation.watchPosition(navPos,function(){ toast("Nu pot citi GPS-ul."); },{enableHighAccuracy:true,maximumAge:1000,timeout:15000});
+    if(!ttMode) setTimeout(function(){ if(navOn && !ttMode) checkRouteTraffic(id); },1800);
   }catch(e){ toast("Eroare la pornirea navigației."); }
 }
 function exitNav(){

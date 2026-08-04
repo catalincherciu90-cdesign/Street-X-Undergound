@@ -618,6 +618,38 @@ export default {
           }
         }
 
+        // Nivelul de trafic pe un traseu salvat (TomTom, reconstruind ruta cu trafic)
+        const rtm = path.match(/^\/api\/my\/routes\/(\d+)\/traffic$/);
+        if (rtm && request.method === "GET") {
+          if (!env.TOMTOM_KEY) return json({ error: "no_key" });
+          const rid = Number(rtm[1]);
+          const route = await env.DB.prepare("SELECT geometry FROM routes WHERE id=?").bind(rid).first();
+          if (!route) return json({ error: "traseu inexistent" }, 404);
+          let coords = [];
+          try { coords = JSON.parse(route.geometry); } catch {}
+          if (!Array.isArray(coords) || coords.length < 2) return json({ error: "geometrie" });
+          const N = 90, step = Math.max(1, Math.floor(coords.length / N));
+          const pts = [];
+          for (let i = 0; i < coords.length; i += step) pts.push({ latitude: coords[i][0], longitude: coords[i][1] });
+          const lastc = coords[coords.length - 1];
+          if (pts.length < 2 || pts[pts.length - 1].latitude !== lastc[0]) pts.push({ latitude: lastc[0], longitude: lastc[1] });
+          const first = pts[0], end = pts[pts.length - 1];
+          const u = "https://api.tomtom.com/routing/1/calculateRoute/" + first.latitude + "," + first.longitude + ":" +
+            end.latitude + "," + end.longitude + "/json?traffic=true&travelMode=car&routeRepresentation=summaryOnly&key=" + env.TOMTOM_KEY;
+          try {
+            const r = await fetch(u, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ supportingPoints: pts }) });
+            if (!r.ok) return json({ error: "upstream" });
+            const d = await r.json();
+            const s = d && d.routes && d.routes[0] && d.routes[0].summary;
+            if (!s) return json({ error: "none" });
+            const time = s.travelTimeInSeconds, delay = s.trafficDelayInSeconds || 0;
+            const free = Math.max(1, time - delay);
+            const ratio = delay / free;
+            const level = ratio < 0.10 ? "liber" : (ratio < 0.30 ? "moderat" : "aglomerat");
+            return json({ time_s: time, delay_s: delay, traffic_len_m: s.trafficLengthInMeters || 0, distance_m: s.lengthInMeters, ratio, level });
+          } catch (e) { return json({ error: "net" }); }
+        }
+
         const rm = path.match(/^\/api\/my\/routes\/(\d+)$/);
         if (rm) {
           const rid = Number(rm[1]);
