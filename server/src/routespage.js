@@ -413,19 +413,70 @@ function haversine(a,b,c,d){var R=6371000,p=Math.PI/180,dLa=(c-a)*p,dLo=(d-b)*p,
 
 // ---- hartă raster (fiabilă în WebView) cu look „Underground" din filtru CSS ----
 let map,recLine=null,viewLayer=null,meDot=null;
-// strat de trafic live (TomTom, prin proxy /traffic) — necesită cheia TOMTOM_KEY
-let trafficLayer=null;
+// strat de trafic live (TomTom, prin proxy) — necesită cheia TOMTOM_KEY
+// afișează culorile de trafic + incidente (accidente, drumuri închise, lucrări)
+let trafficLayer=null, incidentLayer=null, incidentTimer=null;
 function toggleTraffic(){
   if(!map) return;
   var b=document.getElementById("trafBtn");
-  if(trafficLayer){ map.removeLayer(trafficLayer); trafficLayer=null; if(b) b.classList.remove("on"); toast("Trafic oprit."); return; }
+  if(trafficLayer){
+    map.removeLayer(trafficLayer); trafficLayer=null;
+    stopIncidents();
+    if(b) b.classList.remove("on"); toast("Trafic oprit."); return;
+  }
   trafficLayer=L.tileLayer("/traffic/{z}/{x}/{y}.png",{maxZoom:22,opacity:0.85,zIndex:400});
   var loaded=0;
   trafficLayer.on("tileload",function(){ loaded++; });
   trafficLayer.addTo(map);
   if(b) b.classList.add("on");
-  toast("Trafic pornit — verde=liber, roșu=aglomerat.");
+  toast("Trafic + incidente pornite — verde=liber, roșu=aglomerat.");
+  startIncidents();
   setTimeout(function(){ if(trafficLayer && loaded===0) toast("Trafic indisponibil — lipsește cheia TomTom (o adaugi în Cloudflare)."); },4000);
+}
+function startIncidents(){
+  loadIncidents();
+  if(incidentTimer) clearInterval(incidentTimer);
+  incidentTimer=setInterval(loadIncidents,30000);
+  map.on("moveend",loadIncidents);
+}
+function stopIncidents(){
+  if(incidentTimer){ clearInterval(incidentTimer); incidentTimer=null; }
+  if(map) map.off("moveend",loadIncidents);
+  if(incidentLayer && map){ map.removeLayer(incidentLayer); incidentLayer=null; }
+}
+function incidentIcon(cat){
+  var m={1:"🚗💥",2:"🌫️",3:"⚠️",4:"🌧️",5:"❄️",6:"🐌",7:"🚧",8:"⛔",9:"🚧",10:"💨",11:"🌊",14:"🚙"};
+  var e=m[cat]||"⚠️";
+  return L.divIcon({className:"flagmk",html:'<div style="font-size:22px;filter:drop-shadow(0 1px 2px #000);text-align:center">'+e+'</div>',iconSize:[26,26],iconAnchor:[13,13]});
+}
+function incFirstCoord(g){
+  if(!g||!g.coordinates) return null;
+  var c=g.coordinates;
+  if(g.type==="Point") return [c[1],c[0]];
+  if(g.type==="LineString"){ var m=c[Math.floor(c.length/2)]; return [m[1],m[0]]; }
+  if(g.type==="MultiLineString"){ var l=c[0]||[]; var m2=l[Math.floor(l.length/2)]; return m2?[m2[1],m2[0]]:null; }
+  return null;
+}
+async function loadIncidents(){
+  if(!map || !trafficLayer) return;
+  if(map.getZoom()<10) { if(incidentLayer){ map.removeLayer(incidentLayer); incidentLayer=null; } return; } // bbox prea mare
+  try{
+    var bb=map.getBounds();
+    var bbox=bb.getWest()+","+bb.getSouth()+","+bb.getEast()+","+bb.getNorth();
+    var r=await fetch(API+"/incidents?bbox="+encodeURIComponent(bbox)); var d=await r.json();
+    if(incidentLayer){ map.removeLayer(incidentLayer); incidentLayer=null; }
+    var inc=d.incidents||[]; if(!inc.length) return;
+    incidentLayer=L.layerGroup().addTo(map);
+    inc.forEach(function(it){
+      var g=it.geometry||{}, p=it.properties||{};
+      var pt=incFirstCoord(g); if(!pt) return;
+      var ev=(p.events&&p.events[0])||{};
+      var cat=(p.iconCategory!=null)?p.iconCategory:ev.iconCategory;
+      var desc=ev.description||"Incident";
+      var extra=p.delay?(" · +"+Math.round(p.delay/60)+" min"):"";
+      L.marker(pt,{icon:incidentIcon(cat),zIndexOffset:700}).bindPopup(esc(desc)+extra).addTo(incidentLayer);
+    });
+  }catch(e){}
 }
 // hartă pe direcția de mers (heading-up): rotim doar dalele, nu și butoanele
 let headingUp=false, mapRotEl=null, mapRotCurrent=0;

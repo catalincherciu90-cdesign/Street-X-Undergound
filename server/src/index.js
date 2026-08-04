@@ -383,6 +383,24 @@ export default {
         }
       }
 
+      // Incidente de trafic (TomTom) în zona vizibilă (bbox). Necesită TOMTOM_KEY.
+      if (path === "/incidents" && request.method === "GET") {
+        if (!env.TOMTOM_KEY) return json({ incidents: [] });
+        const bbox = url.searchParams.get("bbox");
+        if (!bbox) return json({ incidents: [] });
+        const fields = "{incidents{type,geometry{type,coordinates},properties{iconCategory,magnitudeOfDelay,delay,length,roadNumbers,events{description,code,iconCategory}}}}";
+        const u = "https://api.tomtom.com/traffic/services/5/incidentDetails?bbox=" + encodeURIComponent(bbox) +
+          "&fields=" + encodeURIComponent(fields) + "&language=ro-RO&timeValidityFilter=present&key=" + env.TOMTOM_KEY;
+        try {
+          const r = await fetch(u, { cf: { cacheTtl: 60, cacheEverything: true } });
+          if (!r.ok) return json({ incidents: [] });
+          const d = await r.json();
+          return json({ incidents: (d && d.incidents) || [] });
+        } catch (e) {
+          return json({ incidents: [] });
+        }
+      }
+
       // Logo-ul brandului (public). Dacă nu e încărcat, cade pe /logo.svg (implicit).
       if (path === "/brand/logo") {
         if (env.DOCS) {
