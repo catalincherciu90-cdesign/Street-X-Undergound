@@ -401,6 +401,45 @@ export default {
         }
       }
 
+      // Rutare cu trafic (TomTom) — pentru ETA realist până la START.
+      if (path === "/route" && request.method === "GET") {
+        if (!env.TOMTOM_KEY) return json({ error: "no_key" });
+        const from = url.searchParams.get("from"), to = url.searchParams.get("to");
+        if (!from || !to) return json({ error: "bad_params" }, 400);
+        const u = "https://api.tomtom.com/routing/1/calculateRoute/" + encodeURIComponent(from) + ":" + encodeURIComponent(to) +
+          "/json?traffic=true&travelMode=car&routeType=fastest&key=" + env.TOMTOM_KEY;
+        try {
+          const r = await fetch(u, { cf: { cacheTtl: 30, cacheEverything: true } });
+          if (!r.ok) return json({ error: "upstream" });
+          const d = await r.json();
+          const s = d && d.routes && d.routes[0] && d.routes[0].summary;
+          if (!s) return json({ error: "none" });
+          return json({ distance_m: s.lengthInMeters, time_s: s.travelTimeInSeconds, traffic_delay_s: s.trafficDelayInSeconds || 0 });
+        } catch (e) { return json({ error: "net" }); }
+      }
+
+      // POI în apropiere (TomTom Search) — benzinării/parcări/încărcare.
+      if (path === "/poi" && request.method === "GET") {
+        if (!env.TOMTOM_KEY) return json({ results: [], no_key: true });
+        const lat = url.searchParams.get("lat"), lon = url.searchParams.get("lon");
+        const cat = url.searchParams.get("cat") || "7311";
+        const radius = Math.min(50000, Number(url.searchParams.get("radius")) || 6000);
+        if (!lat || !lon) return json({ results: [] });
+        const u = "https://api.tomtom.com/search/2/nearbySearch/.json?lat=" + lat + "&lon=" + lon +
+          "&radius=" + radius + "&categorySet=" + encodeURIComponent(cat) + "&limit=50&key=" + env.TOMTOM_KEY;
+        try {
+          const r = await fetch(u, { cf: { cacheTtl: 300, cacheEverything: true } });
+          if (!r.ok) return json({ results: [] });
+          const d = await r.json();
+          const results = ((d && d.results) || []).map((x) => ({
+            name: (x.poi && x.poi.name) || "POI",
+            lat: x.position && x.position.lat, lon: x.position && x.position.lon,
+            addr: (x.address && x.address.freeformAddress) || "",
+          })).filter((x) => x.lat != null);
+          return json({ results });
+        } catch (e) { return json({ results: [] }); }
+      }
+
       // Logo-ul brandului (public). Dacă nu e încărcat, cade pe /logo.svg (implicit).
       if (path === "/brand/logo") {
         if (env.DOCS) {

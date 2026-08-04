@@ -42,6 +42,11 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
     display:grid;place-items:center;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5)}
   #trafBtn:active{transform:scale(.94)}
   #trafBtn.on{background:#e56a1c;border-color:transparent}
+  #poiBtn{position:absolute;right:12px;bottom:318px;z-index:600;width:48px;height:48px;border-radius:50%;
+    background:rgba(18,26,22,.94);border:1px solid var(--line2);font-size:20px;
+    display:grid;place-items:center;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5)}
+  #poiBtn:active{transform:scale(.94)}
+  #poiBtn.on{background:#4d9fff;border-color:transparent}
   .glowline{filter:drop-shadow(0 0 3px rgba(125,249,255,.9)) drop-shadow(0 0 7px rgba(34,224,138,.5))}
   #locBtn{position:absolute;right:12px;bottom:14px;z-index:600;width:48px;height:48px;border-radius:50%;
     background:rgba(18,26,22,.94);border:1px solid var(--line2);color:var(--acc);font-size:22px;
@@ -283,6 +288,7 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
   <div id="ttBanner"></div>
   <button id="clearBtn" onclick="clearRouteView()"><span data-ic="x" data-sz="15"></span> Anulează</button>
   <div id="speedo"><b id="spVal">0</b><span>km/h</span></div>
+  <button id="poiBtn" onclick="togglePoi()" title="Benzinării în zonă">⛽</button>
   <button id="trafBtn" onclick="toggleTraffic()" title="Trafic live">🚦</button>
   <button id="hdgBtn" onclick="toggleHeadingUp()" title="Hartă pe direcția de mers">🧭</button>
   <button id="styleBtn" onclick="cycleStyle()" title="Stil hartă">🗺️</button>
@@ -492,6 +498,34 @@ async function loadIncidents(){
         +(parts.length?'<div style="font-size:12px;color:#b9ccc0">'+parts.join(" · ")+'</div>':'')
         +'<div style="font-size:11px;color:#7c9488;margin-top:3px">📍 începe aici</div></div>';
       L.marker(pt,{icon:incidentIcon(cat,mag),zIndexOffset:700}).bindPopup(html).addTo(incidentLayer);
+    });
+  }catch(e){}
+}
+// benzinării în zonă (TomTom Search, prin proxy /poi) — necesită Search API pe cheie
+let poiLayer=null;
+function poiIcon(e){ return L.divIcon({className:"flagmk",html:'<div style="font-size:20px;filter:drop-shadow(0 1px 2px #000)">'+e+'</div>',iconSize:[24,24],iconAnchor:[12,12]}); }
+function togglePoi(){
+  if(!map) return;
+  var b=document.getElementById("poiBtn");
+  if(poiLayer){ map.removeLayer(poiLayer); poiLayer=null; map.off("moveend",loadPoi); if(b) b.classList.remove("on"); toast("Benzinării ascunse."); return; }
+  if(b) b.classList.add("on");
+  toast("Caut benzinării în zonă…");
+  loadPoi();
+  map.on("moveend",loadPoi);
+}
+async function loadPoi(){
+  if(!map) return;
+  if(map.getZoom()<12){ if(poiLayer){ map.removeLayer(poiLayer); poiLayer=null; } return; } // zonă prea mare
+  try{
+    var c=map.getCenter();
+    var r=await fetch(API+"/poi?lat="+c.lat+"&lon="+c.lng+"&cat=7311&radius=7000"); var d=await r.json();
+    if(d.no_key){ toast('Benzinării: activează „Search API" pe cheia TomTom.'); return; }
+    if(poiLayer){ map.removeLayer(poiLayer); poiLayer=null; }
+    var res=d.results||[]; if(!res.length) return;
+    poiLayer=L.layerGroup().addTo(map);
+    res.forEach(function(x){ if(x.lat==null) return;
+      L.marker([x.lat,x.lon],{icon:poiIcon("⛽"),zIndexOffset:650})
+        .bindPopup('<b>'+esc(x.name)+'</b>'+(x.addr?'<br><span style="font-size:12px;color:#b9ccc0">'+esc(x.addr)+'</span>':'')).addTo(poiLayer);
     });
   }catch(e){}
 }
@@ -819,6 +853,14 @@ async function delRoute(id){
 let navOn=false, navRoute=[], navWatch=null, lastNavPos=null;
 // fază „către start" — ghidare până la începutul traseului
 let navStage=null, startPt=null, approachLine=null, approachPath=[], approachSteps=[], approachStepIdx=1;
+let approachEta=null, approachEtaAt=0; // ETA cu trafic (TomTom) până la START
+async function fetchApproachEta(lat,lng){
+  try{
+    var r=await fetch(API+"/route?from="+lat+","+lng+"&to="+startPt[0]+","+startPt[1]);
+    var d=await r.json();
+    if(d && d.time_s){ approachEta={min:Math.max(1,Math.round(d.time_s/60)), delay:Math.round((d.traffic_delay_s||0)/60)}; }
+  }catch(e){}
+}
 // urmărire hartă: harta te urmează doar până când o miști tu (pan/zoom)
 let navFollow=true, selfMove=false, navZoomed=false;
 // contra-timp (time trial): start lansat + cronometru START→FINISH
@@ -919,6 +961,7 @@ async function startNav(id,tt){
     ttMode=!!tt; ttRouteId=id; ttStarted=false; ttFinished=false; ttAnnounced=false; stopTtClock(); ttHideBanner();
     if(ttMode) toast("Contra-timp — du-te la START, cronometrez de la linia de start.");
     navStage=null; startPt=navRoute[0]; approachPath=[]; approachSteps=[]; approachStepIdx=1;
+    approachEta=null; approachEtaAt=0;
     navFollow=true; navZoomed=false;
     var rb=document.getElementById("recenterBtn"); if(rb) rb.style.display="none";
     if(approachLine){map.removeLayer(approachLine);approachLine=null;}
@@ -1029,8 +1072,11 @@ function approachGuide(lat,lng,spd,heading){
   var arrow=document.getElementById("navArrow"); if(arrow){ arrow.style.opacity="1"; arrow.style.transform="rotate("+rot+"deg)"; }
   var remEl=document.getElementById("navRemain"), nextEl=document.getElementById("navNext");
   var ds=(remain<1000?Math.round(remain)+" m":(remain/1000).toFixed(1)+" km");
+  // ETA cu trafic (reîmprospătat la ~45s)
+  if(!approachEtaAt || Date.now()-approachEtaAt>45000){ approachEtaAt=Date.now(); fetchApproachEta(lat,lng); }
+  var etaTxt = approachEta ? (" · ~"+approachEta.min+" min"+(approachEta.delay>0?" (+"+approachEta.delay+" trafic)":"")) : "";
   if(remEl){ remEl.textContent="→ "+nextTxt; remEl.className=""; }
-  if(nextEl) nextEl.textContent="· "+ds+" până la START";
+  if(nextEl) nextEl.textContent="· "+ds+" până la START"+etaTxt;
 }
 function navPos(p){
   if(!navOn||!navRoute.length) return;
