@@ -38,15 +38,15 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
   #hdgBtn:active{transform:scale(.94)}
   #hdgBtn.on{background:var(--acc);color:#08130d;border-color:transparent}
   #trafBtn{position:absolute;right:12px;bottom:262px;z-index:600;width:48px;height:48px;border-radius:50%;
-    background:rgba(18,26,22,.94);border:1px solid var(--line2);font-size:20px;
+    background:rgba(18,26,22,.94);border:1px solid var(--line2);color:var(--acc);
     display:grid;place-items:center;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5)}
   #trafBtn:active{transform:scale(.94)}
-  #trafBtn.on{background:#e56a1c;border-color:transparent}
+  #trafBtn.on{background:#e56a1c;border-color:transparent;color:#160a02}
   #poiBtn{position:absolute;right:12px;bottom:318px;z-index:600;width:48px;height:48px;border-radius:50%;
-    background:rgba(18,26,22,.94);border:1px solid var(--line2);font-size:20px;
+    background:rgba(18,26,22,.94);border:1px solid var(--line2);color:var(--acc);
     display:grid;place-items:center;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5)}
   #poiBtn:active{transform:scale(.94)}
-  #poiBtn.on{background:#4d9fff;border-color:transparent}
+  #poiBtn.on{background:#4d9fff;border-color:transparent;color:#0a1420}
   .glowline{filter:drop-shadow(0 0 3px rgba(125,249,255,.9)) drop-shadow(0 0 7px rgba(34,224,138,.5))}
   #locBtn{position:absolute;right:12px;bottom:14px;z-index:600;width:48px;height:48px;border-radius:50%;
     background:rgba(18,26,22,.94);border:1px solid var(--line2);color:var(--acc);font-size:22px;
@@ -288,11 +288,11 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
   <div id="ttBanner"></div>
   <button id="clearBtn" onclick="clearRouteView()"><span data-ic="x" data-sz="15"></span> Anulează</button>
   <div id="speedo"><b id="spVal">0</b><span>km/h</span></div>
-  <button id="poiBtn" onclick="togglePoi()" title="Benzinării în zonă">⛽</button>
-  <button id="trafBtn" onclick="toggleTraffic()" title="Trafic live">🚦</button>
-  <button id="hdgBtn" onclick="toggleHeadingUp()" title="Hartă pe direcția de mers">🧭</button>
-  <button id="styleBtn" onclick="cycleStyle()" title="Stil hartă">🗺️</button>
-  <button id="locBtn" onclick="locateMe()" title="Unde sunt">📍</button>
+  <button id="poiBtn" onclick="togglePoi()" title="Benzinării în zonă"><span data-ic="fuel" data-sz="22"></span></button>
+  <button id="trafBtn" onclick="toggleTraffic()" title="Trafic live"><span data-ic="traffic" data-sz="22"></span></button>
+  <button id="hdgBtn" onclick="toggleHeadingUp()" title="Hartă pe direcția de mers"><span data-ic="compass" data-sz="22"></span></button>
+  <button id="styleBtn" onclick="cycleStyle()" title="Stil hartă"><span data-ic="layers" data-sz="22"></span></button>
+  <button id="locBtn" onclick="locateMe()" title="Unde sunt"><span data-ic="locate" data-sz="22"></span></button>
 </div>
 
 <!-- sheet ÎNREGISTRARE -->
@@ -301,7 +301,7 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
   <div class="recbar">
     <button class="recbtn start" id="recBtn" onclick="toggleRec()"><span data-ic="rec"></span> Start înregistrare</button>
   </div>
-  <button class="perflink" onclick="openPerf()">⏱️ Mod performanță — 0-100, 1/4 milă, 100-200…</button>
+  <button class="perflink" onclick="openPerf()"><span data-ic="timer" data-sz="15"></span> Mod performanță — 0-100, 1/4 milă, 100-200…</button>
 </div>
 
 <!-- sheet LISTE (mine / bibliotecă) -->
@@ -399,7 +399,12 @@ const ICP={
   msg:'<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
   send:'<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>',
   plus:'<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
-  timer:'<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2"/><path d="M9 2h6"/>'
+  timer:'<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2"/><path d="M9 2h6"/>',
+  locate:'<circle cx="12" cy="12" r="3.2"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/>',
+  layers:'<polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>',
+  compass:'<circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>',
+  traffic:'<rect x="8" y="2" width="8" height="20" rx="4"/><line x1="8" y1="7" x2="4" y2="7"/><line x1="8" y1="17" x2="4" y2="17"/><line x1="16" y1="7" x2="20" y2="7"/><line x1="16" y1="12" x2="20" y2="12"/><circle cx="12" cy="7" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="12" cy="17" r="1.3"/>',
+  fuel:'<line x1="3" y1="22" x2="15" y2="22"/><line x1="4" y1="9" x2="14" y2="9"/><path d="M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18"/><path d="M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 4 0V9.83a2 2 0 0 0-.59-1.42L18 5"/>'
 };
 function ic(n,s){var x=s||18;return '<svg class="ic" width="'+x+'" height="'+x+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+(ICP[n]||"")+'</svg>';}
 function fillIcons(r){(r||document).querySelectorAll("[data-ic]").forEach(function(el){el.innerHTML=ic(el.getAttribute("data-ic"),el.getAttribute("data-sz")||20);});}
@@ -607,7 +612,6 @@ function cycleStyle(){
   var next=MAP_STYLES[(idx+1)%MAP_STYLES.length];
   mapStyle=next.id;
   try{ localStorage.setItem("sxu_mapstyle",mapStyle); }catch(e){}
-  var b=document.getElementById("styleBtn"); if(b) b.textContent=next.icon;
   addBase();
   toast(next.icon+" "+next.name);
 }
@@ -617,7 +621,6 @@ function initMap(){
   try{
     map=L.map("mapCanvas",{zoomControl:false}).setView([45.9432,24.9668],7);
     mapRotEl=document.getElementById("mapRot");
-    var sb=document.getElementById("styleBtn"); if(sb) sb.textContent=styleDef(mapStyle).icon;
     addBase();
     L.control.zoom({position:"bottomleft"}).addTo(map);
     // Dacă utilizatorul mișcă/zoom-uiește harta în timpul navigației, nu-l mai recentrăm
@@ -797,7 +800,7 @@ function routeItemHtml(rt,mine){
     +'<div class="racts" onclick="event.stopPropagation()">'
     +'<button class="rbtn cyan" onclick="viewRoute('+rt.id+')">'+ic("eye",14)+' Vezi</button>'
     +'<button class="rbtn" onclick="startNav('+rt.id+')">'+ic("nav",14)+' Condu</button>'
-    +'<button class="rbtn" onclick="checkRouteTraffic('+rt.id+')">🚦 Trafic</button>'
+    +'<button class="rbtn" onclick="checkRouteTraffic('+rt.id+')">'+ic("traffic",14)+' Trafic</button>'
     +'<button class="rbtn" onclick="startTimeTrial('+rt.id+')">'+ic("timer",14)+' Contra-timp</button>'
     +'<button class="rbtn" onclick="startParty('+rt.id+')">'+ic("users",14)+' Party</button>';
   if(mine){
