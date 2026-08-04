@@ -365,6 +365,24 @@ export default {
         }
       }
 
+      // Proxy dale de trafic (TomTom Traffic Flow). Necesită secretul TOMTOM_KEY.
+      // Fără cheie, întoarce 204 (stratul nu afișează nimic).
+      const trm = path.match(/^\/traffic\/(\d+)\/(\d+)\/(\d+)\.png$/);
+      if (trm && request.method === "GET") {
+        if (!env.TOMTOM_KEY) return new Response("", { status: 204, headers: CORS });
+        const z = trm[1], x = trm[2], y = trm[3];
+        const upstream = "https://api.tomtom.com/traffic/map/4/tile/flow/relative/" + z + "/" + x + "/" + y + ".png?key=" + env.TOMTOM_KEY;
+        try {
+          const resp = await fetch(upstream, { cf: { cacheEverything: true, cacheTtl: 120 } });
+          if (!resp.ok) return new Response("", { status: 204, headers: CORS });
+          return new Response(resp.body, {
+            headers: { "Content-Type": "image/png", "Cache-Control": "public, max-age=120", ...CORS },
+          });
+        } catch (e) {
+          return new Response("", { status: 204, headers: CORS });
+        }
+      }
+
       // Logo-ul brandului (public). Dacă nu e încărcat, cade pe /logo.svg (implicit).
       if (path === "/brand/logo") {
         if (env.DOCS) {

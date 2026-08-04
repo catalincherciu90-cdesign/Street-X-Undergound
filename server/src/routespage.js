@@ -37,6 +37,11 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
     display:grid;place-items:center;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5)}
   #hdgBtn:active{transform:scale(.94)}
   #hdgBtn.on{background:var(--acc);color:#08130d;border-color:transparent}
+  #trafBtn{position:absolute;right:12px;bottom:262px;z-index:600;width:48px;height:48px;border-radius:50%;
+    background:rgba(18,26,22,.94);border:1px solid var(--line2);font-size:20px;
+    display:grid;place-items:center;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5)}
+  #trafBtn:active{transform:scale(.94)}
+  #trafBtn.on{background:#e56a1c;border-color:transparent}
   .glowline{filter:drop-shadow(0 0 3px rgba(125,249,255,.9)) drop-shadow(0 0 7px rgba(34,224,138,.5))}
   #locBtn{position:absolute;right:12px;bottom:14px;z-index:600;width:48px;height:48px;border-radius:50%;
     background:rgba(18,26,22,.94);border:1px solid var(--line2);color:var(--acc);font-size:22px;
@@ -278,6 +283,7 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
   <div id="ttBanner"></div>
   <button id="clearBtn" onclick="clearRouteView()"><span data-ic="x" data-sz="15"></span> Anulează</button>
   <div id="speedo"><b id="spVal">0</b><span>km/h</span></div>
+  <button id="trafBtn" onclick="toggleTraffic()" title="Trafic live">🚦</button>
   <button id="hdgBtn" onclick="toggleHeadingUp()" title="Hartă pe direcția de mers">🧭</button>
   <button id="styleBtn" onclick="cycleStyle()" title="Stil hartă">🗺️</button>
   <button id="locBtn" onclick="locateMe()" title="Unde sunt">📍</button>
@@ -407,6 +413,20 @@ function haversine(a,b,c,d){var R=6371000,p=Math.PI/180,dLa=(c-a)*p,dLo=(d-b)*p,
 
 // ---- hartă raster (fiabilă în WebView) cu look „Underground" din filtru CSS ----
 let map,recLine=null,viewLayer=null,meDot=null;
+// strat de trafic live (TomTom, prin proxy /traffic) — necesită cheia TOMTOM_KEY
+let trafficLayer=null;
+function toggleTraffic(){
+  if(!map) return;
+  var b=document.getElementById("trafBtn");
+  if(trafficLayer){ map.removeLayer(trafficLayer); trafficLayer=null; if(b) b.classList.remove("on"); toast("Trafic oprit."); return; }
+  trafficLayer=L.tileLayer("/traffic/{z}/{x}/{y}.png",{maxZoom:22,opacity:0.85,zIndex:400});
+  var loaded=0;
+  trafficLayer.on("tileload",function(){ loaded++; });
+  trafficLayer.addTo(map);
+  if(b) b.classList.add("on");
+  toast("Trafic pornit — verde=liber, roșu=aglomerat.");
+  setTimeout(function(){ if(trafficLayer && loaded===0) toast("Trafic indisponibil — lipsește cheia TomTom (o adaugi în Cloudflare)."); },4000);
+}
 // hartă pe direcția de mers (heading-up): rotim doar dalele, nu și butoanele
 let headingUp=false, mapRotEl=null, mapRotCurrent=0;
 function applyMapRotation(h){
