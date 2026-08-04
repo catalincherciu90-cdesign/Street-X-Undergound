@@ -158,6 +158,11 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
     box-shadow:inset 0 0 0 1px rgba(34,224,138,.10);
     background:radial-gradient(ellipse at center, transparent 55%, rgba(9,20,30,.6) 100%)}
   #map{position:relative}
+  #mapCtrls{position:absolute;right:12px;top:12px;z-index:600;display:flex;flex-direction:column;gap:8px}
+  #mapCtrls button{width:42px;height:42px;border-radius:10px;background:var(--s2);border:1px solid var(--line2);
+    color:var(--gold);display:grid;place-items:center;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.5);padding:0}
+  #mapCtrls button:hover{background:var(--s3)}
+  #mapCtrls button.on{background:var(--gold);color:#12100a;border-color:transparent}
   /* scrollbar */
   ::-webkit-scrollbar{width:8px}
   ::-webkit-scrollbar-thumb{background:rgba(34,224,138,.22);border-radius:4px}
@@ -325,7 +330,12 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
       <div id="routeInfo" style="font-size:13px;line-height:1.4"></div>
     </div>
   </div>
-  <div id="map"></div>
+  <div id="map">
+    <div id="mapCtrls">
+      <button id="dTrafBtn" onclick="toggleDTraffic()" title="Trafic + incidente"><span data-ic="traffic" data-sz="18"></span></button>
+      <button id="dPoiBtn" onclick="toggleDPoi()" title="Benzinării în zonă"><span data-ic="fuel" data-sz="18"></span></button>
+    </div>
+  </div>
 </div>
 
 <!-- MODAL adaugă dispozitiv -->
@@ -477,7 +487,9 @@ const ICP={
   send:'<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>',
   search:'<circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
   alert:'<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h16.9a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
-  clock:'<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>'
+  clock:'<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>',
+  traffic:'<rect x="8" y="2" width="8" height="20" rx="4"/><line x1="8" y1="7" x2="4" y2="7"/><line x1="8" y1="17" x2="4" y2="17"/><line x1="16" y1="7" x2="20" y2="7"/><line x1="16" y1="12" x2="20" y2="12"/><circle cx="12" cy="7" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="12" cy="17" r="1.3"/>',
+  fuel:'<line x1="3" y1="22" x2="15" y2="22"/><line x1="4" y1="9" x2="14" y2="9"/><path d="M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18"/><path d="M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 4 0V9.83a2 2 0 0 0-.59-1.42L18 5"/>'
 };
 function ic(name,size){var s=size||16;return '<svg class="ic" width="'+s+'" height="'+s+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'+(ICP[name]||"")+'</svg>';}
 function fillIcons(root){(root||document).querySelectorAll("[data-ic]").forEach(function(el){el.innerHTML=ic(el.getAttribute("data-ic"),el.getAttribute("data-sz")||17);});}
@@ -934,6 +946,84 @@ function renderRoutes(list){
         +'<button class="qrbtn" onclick="deleteRouteAdmin('+rt.id+')">'+ic("trash",14)+'Șterge</button>'
       +'</div></div>';
   }).join("");
+}
+
+// ---- Trafic + incidente + benzinării pe harta din admin (același proxy TomTom) ----
+let trafficLayer=null, incidentLayer=null, incidentTimer=null, poiLayer=null;
+function toggleDTraffic(){
+  if(!map) return;
+  var b=document.getElementById("dTrafBtn");
+  if(trafficLayer){ map.removeLayer(trafficLayer); trafficLayer=null; dStopIncidents(); if(b) b.classList.remove("on"); return; }
+  trafficLayer=L.tileLayer("/traffic/{z}/{x}/{y}.png",{maxZoom:22,opacity:0.85,zIndex:400}).addTo(map);
+  if(b) b.classList.add("on");
+  dStartIncidents();
+}
+function dStartIncidents(){ dLoadIncidents(); if(incidentTimer) clearInterval(incidentTimer); incidentTimer=setInterval(dLoadIncidents,30000); map.on("moveend",dLoadIncidents); }
+function dStopIncidents(){ if(incidentTimer){ clearInterval(incidentTimer); incidentTimer=null; } if(map) map.off("moveend",dLoadIncidents); if(incidentLayer&&map){ map.removeLayer(incidentLayer); incidentLayer=null; } }
+function dIncIcon(cat,mag){
+  var m={1:"🚗💥",2:"🌫️",3:"⚠️",4:"🌧️",5:"❄️",6:"🐌",7:"🚧",8:"⛔",9:"🚧",10:"💨",11:"🌊",14:"🚙"};
+  var e=m[cat]||"⚠️";
+  var color=mag>=3?"#ff3b3b":(mag===2?"#ff8a3d":(mag===1?"#eab54a":"#8bd450"));
+  var html='<div style="position:relative;width:30px;height:38px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.6))">'
+    +'<svg width="30" height="38" viewBox="0 0 30 38"><path d="M15 0C6.7 0 0 6.7 0 15c0 10.5 15 23 15 23s15-12.5 15-23C30 6.7 23.3 0 15 0z" fill="'+color+'" stroke="#0a0f0d" stroke-width="1.6"/></svg>'
+    +'<div style="position:absolute;top:2px;left:0;width:30px;text-align:center;font-size:15px;line-height:1">'+e+'</div></div>';
+  return L.divIcon({className:"",html:html,iconSize:[30,38],iconAnchor:[15,38],popupAnchor:[0,-34]});
+}
+function dIncStart(g){
+  if(!g||!g.coordinates) return null; var c=g.coordinates;
+  if(g.type==="Point") return [c[1],c[0]];
+  if(g.type==="LineString"){ var a=c[0]; return a?[a[1],a[0]]:null; }
+  if(g.type==="MultiLineString"){ var l=c[0]||[]; var a2=l[0]; return a2?[a2[1],a2[0]]:null; }
+  return null;
+}
+function dIncLen(len){ if(!len) return ""; return len>=1000?(len/1000).toFixed(1)+" km":Math.round(len)+" m"; }
+async function dLoadIncidents(){
+  if(!map || !trafficLayer) return;
+  if(map.getZoom()<10){ if(incidentLayer){ map.removeLayer(incidentLayer); incidentLayer=null; } return; }
+  try{
+    var bb=map.getBounds();
+    var bbox=bb.getWest()+","+bb.getSouth()+","+bb.getEast()+","+bb.getNorth();
+    var r=await fetch(API+"/incidents?bbox="+encodeURIComponent(bbox)); var d=await r.json();
+    if(incidentLayer){ map.removeLayer(incidentLayer); incidentLayer=null; }
+    var inc=d.incidents||[]; if(!inc.length) return;
+    incidentLayer=L.layerGroup().addTo(map);
+    var sevTxt=["","minor","moderat","major",""];
+    inc.forEach(function(it){
+      var g=it.geometry||{}, p=it.properties||{};
+      var pt=dIncStart(g); if(!pt) return;
+      var ev=(p.events&&p.events[0])||{};
+      var cat=(p.iconCategory!=null)?p.iconCategory:ev.iconCategory;
+      var mag=p.magnitudeOfDelay||0, desc=ev.description||"Incident";
+      var road=(p.roadNumbers&&p.roadNumbers.length)?p.roadNumbers.join(", "):"";
+      var len=dIncLen(p.length), delay=p.delay?("+"+Math.round(p.delay/60)+" min"):"", sev=sevTxt[mag]||"";
+      var parts=[]; if(len)parts.push("📏 "+len); if(delay)parts.push("⏱ "+delay); if(sev)parts.push(sev);
+      var html=(road?'<b>'+esc(road)+'</b><br>':'')+esc(desc)+(parts.length?('<br><span style="font-size:12px;color:#9fb0a6">'+parts.join(" · ")+'</span>'):'');
+      L.marker(pt,{icon:dIncIcon(cat,mag),zIndexOffset:700}).bindPopup(html).addTo(incidentLayer);
+    });
+  }catch(e){}
+}
+function dPoiIcon(e){ return L.divIcon({className:"",html:'<div style="font-size:20px;filter:drop-shadow(0 1px 2px #000)">'+e+'</div>',iconSize:[24,24],iconAnchor:[12,12]}); }
+function toggleDPoi(){
+  if(!map) return;
+  var b=document.getElementById("dPoiBtn");
+  if(poiLayer){ map.removeLayer(poiLayer); poiLayer=null; map.off("moveend",dLoadPoi); if(b) b.classList.remove("on"); return; }
+  if(b) b.classList.add("on");
+  dLoadPoi(); map.on("moveend",dLoadPoi);
+}
+async function dLoadPoi(){
+  if(!map) return;
+  if(map.getZoom()<12){ if(poiLayer){ map.removeLayer(poiLayer); poiLayer=null; } return; }
+  try{
+    var c=map.getCenter();
+    var r=await fetch(API+"/poi?lat="+c.lat+"&lon="+c.lng+"&cat=7311&radius=7000"); var d=await r.json();
+    if(poiLayer){ map.removeLayer(poiLayer); poiLayer=null; }
+    var res=d.results||[]; if(!res.length) return;
+    poiLayer=L.layerGroup().addTo(map);
+    res.forEach(function(x){ if(x.lat==null) return;
+      L.marker([x.lat,x.lon],{icon:dPoiIcon("⛽"),zIndexOffset:650})
+        .bindPopup('<b>'+esc(x.name)+'</b>'+(x.addr?'<br><span style="font-size:12px;color:#9fb0a6">'+esc(x.addr)+'</span>':'')).addTo(poiLayer);
+    });
+  }catch(e){}
 }
 function clearRouteView(){ if(routeViewLayer){ map.removeLayer(routeViewLayer); routeViewLayer=null; } }
 async function viewRouteAdmin(id){
