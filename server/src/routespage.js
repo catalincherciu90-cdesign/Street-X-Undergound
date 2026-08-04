@@ -27,8 +27,16 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
   header .hbtn{background:var(--s3);border:1px solid var(--line2);color:var(--t2);border-radius:9px;width:36px;height:36px;display:grid;place-items:center;cursor:pointer}
   img[src$="brand/logo"]{filter:drop-shadow(0 0 5px rgba(34,224,138,.35))}
 
-  #map{flex:1 1 auto;position:relative;background:#0a1418;min-height:240px}
+  #map{flex:1 1 auto;position:relative;background:#0a1418;min-height:240px;overflow:hidden}
+  #mapRot{position:absolute;left:0;top:0;width:100%;height:100%;transform-origin:center center;transition:transform .25s ease-out;z-index:0}
+  #mapRot.rot{left:-21%;top:-21%;width:142%;height:142%}
+  #mapCanvas{width:100%;height:100%}
   .leaflet-container{background:#0a1418}
+  #hdgBtn{position:absolute;right:12px;bottom:206px;z-index:600;width:48px;height:48px;border-radius:50%;
+    background:rgba(18,26,22,.94);border:1px solid var(--line2);color:var(--acc);font-size:20px;
+    display:grid;place-items:center;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5)}
+  #hdgBtn:active{transform:scale(.94)}
+  #hdgBtn.on{background:var(--acc);color:#08130d;border-color:transparent}
   .glowline{filter:drop-shadow(0 0 3px rgba(125,249,255,.9)) drop-shadow(0 0 7px rgba(34,224,138,.5))}
   #locBtn{position:absolute;right:12px;bottom:14px;z-index:600;width:48px;height:48px;border-radius:50%;
     background:rgba(18,26,22,.94);border:1px solid var(--line2);color:var(--acc);font-size:22px;
@@ -250,6 +258,7 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
 </header>
 
 <div id="map">
+  <div id="mapRot"><div id="mapCanvas"></div></div>
   <div id="liveStats">
     <div class="stat rec"><b id="stDist">0.0</b><span>km</span></div>
     <div class="stat"><b id="stTime">0:00</b><span>timp</span></div>
@@ -269,6 +278,7 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
   <div id="ttBanner"></div>
   <button id="clearBtn" onclick="clearRouteView()"><span data-ic="x" data-sz="15"></span> Anulează</button>
   <div id="speedo"><b id="spVal">0</b><span>km/h</span></div>
+  <button id="hdgBtn" onclick="toggleHeadingUp()" title="Hartă pe direcția de mers">🧭</button>
   <button id="styleBtn" onclick="cycleStyle()" title="Stil hartă">🗺️</button>
   <button id="locBtn" onclick="locateMe()" title="Unde sunt">📍</button>
 </div>
@@ -397,6 +407,31 @@ function haversine(a,b,c,d){var R=6371000,p=Math.PI/180,dLa=(c-a)*p,dLo=(d-b)*p,
 
 // ---- hartă raster (fiabilă în WebView) cu look „Underground" din filtru CSS ----
 let map,recLine=null,viewLayer=null,meDot=null;
+// hartă pe direcția de mers (heading-up): rotim doar dalele, nu și butoanele
+let headingUp=false, mapRotEl=null, mapRotCurrent=0;
+function applyMapRotation(h){
+  if(!mapRotEl) return;
+  if(!headingUp){ mapRotEl.style.transform=""; return; }
+  if(h==null||isNaN(h)) return; // fără direcție (oprit) → păstrează ultima rotație
+  var target=-h;
+  var diff=((target-mapRotCurrent+540)%360)-180; // cel mai scurt drum, fără spin
+  mapRotCurrent=mapRotCurrent+diff;
+  mapRotEl.style.transform="rotate("+mapRotCurrent+"deg)";
+}
+function toggleHeadingUp(){
+  headingUp=!headingUp;
+  var b=document.getElementById("hdgBtn"); if(b) b.classList.toggle("on",headingUp);
+  if(mapRotEl){
+    if(headingUp) mapRotEl.classList.add("rot");
+    else { mapRotEl.classList.remove("rot"); mapRotEl.style.transform=""; mapRotCurrent=0; }
+  }
+  setTimeout(function(){
+    selfMove=true;
+    if(map){ map.invalidateSize(); if(myPos) map.setView(myPos, map.getZoom(), {animate:false}); }
+    if(headingUp) applyMapRotation(meHeading);
+  },60);
+  toast(headingUp?"Hartă pe direcția de mers":"Hartă spre nord");
+}
 let baseLayer=null, mapStyle=(localStorage.getItem("sxu_mapstyle")||"dark");
 const MAP_STYLES=[
   {id:"dark",   name:"Underground", icon:"🌃"},
@@ -445,7 +480,8 @@ function initMap(){
   dbg();
   if(typeof L==="undefined"){ mapMsg("Nu s-a încărcat motorul de hartă (Leaflet).","#ff5b60"); return; }
   try{
-    map=L.map("map",{zoomControl:false}).setView([45.9432,24.9668],7);
+    map=L.map("mapCanvas",{zoomControl:false}).setView([45.9432,24.9668],7);
+    mapRotEl=document.getElementById("mapRot");
     var sb=document.getElementById("styleBtn"); if(sb) sb.textContent=styleDef(mapStyle).icon;
     addBase();
     L.control.zoom({position:"bottomleft"}).addTo(map);
@@ -460,7 +496,7 @@ function initMap(){
     [100,300,600,1200,2500,4000].forEach(function(t){ setTimeout(fix,t); });
     window.addEventListener("resize",fix);
     window.addEventListener("load",fix);
-    if(window.ResizeObserver){ try{ new ResizeObserver(fix).observe(document.getElementById("map")); }catch(e){} }
+    if(window.ResizeObserver){ try{ new ResizeObserver(fix).observe(document.getElementById("mapCanvas")); }catch(e){} }
   }catch(e){ mapMsg("Eroare hartă: "+(e&&e.message?e.message:e),"#ff5b60"); dbg(); }
 }
 
@@ -493,6 +529,7 @@ function startLocate(){
     var hd=headingOf(p, myPos);
     myPos=[p.coords.latitude,p.coords.longitude];
     setMe(myPos, p.coords.accuracy, hd);
+    applyMapRotation(hd);
     setSpeed(kmhOf(p));
     if(!locCentered && !navOn){ locCentered=true; map.setView(myPos, 16); }
   }, function(){}, {enableHighAccuracy:true, maximumAge:5000, timeout:15000});
@@ -526,7 +563,8 @@ function onPos(p){
   var lat=p.coords.latitude,lng=p.coords.longitude;
   var spd=(p.coords.speed!=null&&p.coords.speed>=0)?Math.round(p.coords.speed*3.6):0;
   document.getElementById("stSpd").textContent=spd; setSpeed(spd);
-  setMe([lat,lng], null, headingOf(p, recPts.length?recPts[recPts.length-1]:myPos));
+  var ohd=headingOf(p, recPts.length?recPts[recPts.length-1]:myPos);
+  setMe([lat,lng], null, ohd); applyMapRotation(ohd);
   if(!recording){ map.setView([lat,lng],15); return; }
   var last=recPts[recPts.length-1];
   if(last){ var d=haversine(last[0],last[1],lat,lng); if(d<3) return; if(d<200) recDist+=d; }
@@ -916,6 +954,7 @@ function navPos(p){
   if(p.coords.heading!=null && !isNaN(p.coords.heading) && spd>=2) heading=p.coords.heading;
   else if(lastNavPos){ var mv=haversine(lastNavPos[0],lastNavPos[1],lat,lng); if(mv>3) heading=bearing(lastNavPos[0],lastNavPos[1],lat,lng); }
   setMe([lat,lng], null, heading);
+  applyMapRotation(heading);
   if(navFollow) navSetView([lat,lng]);
   // decide faza la prima poziție: dacă ești departe de start, ghidează-te întâi acolo
   if(navStage===null){
