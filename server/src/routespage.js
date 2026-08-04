@@ -444,19 +444,25 @@ function stopIncidents(){
   if(map) map.off("moveend",loadIncidents);
   if(incidentLayer && map){ map.removeLayer(incidentLayer); incidentLayer=null; }
 }
-function incidentIcon(cat){
+function incidentIcon(cat,mag){
   var m={1:"🚗💥",2:"🌫️",3:"⚠️",4:"🌧️",5:"❄️",6:"🐌",7:"🚧",8:"⛔",9:"🚧",10:"💨",11:"🌊",14:"🚙"};
   var e=m[cat]||"⚠️";
-  return L.divIcon({className:"flagmk",html:'<div style="font-size:22px;filter:drop-shadow(0 1px 2px #000);text-align:center">'+e+'</div>',iconSize:[26,26],iconAnchor:[13,13]});
+  var color = mag>=3?"#ff3b3b":(mag===2?"#ff8a3d":(mag===1?"#eab54a":"#8bd450"));
+  var html='<div style="position:relative;width:30px;height:38px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.6))">'
+    +'<svg width="30" height="38" viewBox="0 0 30 38"><path d="M15 0C6.7 0 0 6.7 0 15c0 10.5 15 23 15 23s15-12.5 15-23C30 6.7 23.3 0 15 0z" fill="'+color+'" stroke="#0a0f0d" stroke-width="1.6"/></svg>'
+    +'<div style="position:absolute;top:2px;left:0;width:30px;text-align:center;font-size:15px;line-height:1">'+e+'</div></div>';
+  return L.divIcon({className:"flagmk",html:html,iconSize:[30,38],iconAnchor:[15,38],popupAnchor:[0,-34]});
 }
-function incFirstCoord(g){
+// punctul de ÎNCEPUT al incidentului (acolo unde începe traficul)
+function incStartCoord(g){
   if(!g||!g.coordinates) return null;
   var c=g.coordinates;
   if(g.type==="Point") return [c[1],c[0]];
-  if(g.type==="LineString"){ var m=c[Math.floor(c.length/2)]; return [m[1],m[0]]; }
-  if(g.type==="MultiLineString"){ var l=c[0]||[]; var m2=l[Math.floor(l.length/2)]; return m2?[m2[1],m2[0]]:null; }
+  if(g.type==="LineString"){ var a=c[0]; return a?[a[1],a[0]]:null; }
+  if(g.type==="MultiLineString"){ var l=c[0]||[]; var a2=l[0]; return a2?[a2[1],a2[0]]:null; }
   return null;
 }
+function incLenTxt(len){ if(!len) return ""; return len>=1000?(len/1000).toFixed(1)+" km":Math.round(len)+" m"; }
 async function loadIncidents(){
   if(!map || !trafficLayer) return;
   if(map.getZoom()<10) { if(incidentLayer){ map.removeLayer(incidentLayer); incidentLayer=null; } return; } // bbox prea mare
@@ -467,14 +473,25 @@ async function loadIncidents(){
     if(incidentLayer){ map.removeLayer(incidentLayer); incidentLayer=null; }
     var inc=d.incidents||[]; if(!inc.length) return;
     incidentLayer=L.layerGroup().addTo(map);
+    var sevTxt=["","minor","moderat","major",""];
     inc.forEach(function(it){
       var g=it.geometry||{}, p=it.properties||{};
-      var pt=incFirstCoord(g); if(!pt) return;
+      var pt=incStartCoord(g); if(!pt) return;
       var ev=(p.events&&p.events[0])||{};
       var cat=(p.iconCategory!=null)?p.iconCategory:ev.iconCategory;
+      var mag=p.magnitudeOfDelay||0;
       var desc=ev.description||"Incident";
-      var extra=p.delay?(" · +"+Math.round(p.delay/60)+" min"):"";
-      L.marker(pt,{icon:incidentIcon(cat),zIndexOffset:700}).bindPopup(esc(desc)+extra).addTo(incidentLayer);
+      var road=(p.roadNumbers&&p.roadNumbers.length)?p.roadNumbers.join(", "):"";
+      var len=incLenTxt(p.length);
+      var delay=p.delay?("+"+Math.round(p.delay/60)+" min"):"";
+      var sev=sevTxt[mag]||"";
+      var parts=[]; if(len) parts.push("📏 "+len); if(delay) parts.push("⏱ "+delay); if(sev) parts.push(sev);
+      var html='<div style="min-width:150px">'
+        +(road?'<div style="font-weight:700;color:#eafcff;font-family:ui-monospace,monospace">'+esc(road)+'</div>':'')
+        +'<div style="margin:2px 0">'+esc(desc)+'</div>'
+        +(parts.length?'<div style="font-size:12px;color:#b9ccc0">'+parts.join(" · ")+'</div>':'')
+        +'<div style="font-size:11px;color:#7c9488;margin-top:3px">📍 începe aici</div></div>';
+      L.marker(pt,{icon:incidentIcon(cat,mag),zIndexOffset:700}).bindPopup(html).addTo(incidentLayer);
     });
   }catch(e){}
 }
