@@ -1014,21 +1014,36 @@ function osrmStepText(st){
 async function buildApproach(lat,lng){
   approachPath=[]; approachSteps=[]; approachStepIdx=1;
   if(approachLine){ map.removeLayer(approachLine); approachLine=null; }
-  var s=startPt;
+  var s=startPt; var viaTraffic=false;
+  // 1) TomTom cu trafic — ocolește ambuteiajele (dacă e cheia setată)
   try{
-    var url="https://router.project-osrm.org/route/v1/driving/"+lng+","+lat+";"+s[1]+","+s[0]+"?overview=full&geometries=geojson&steps=true";
-    var r=await fetch(url); var d=await r.json();
-    if(d&&d.routes&&d.routes[0]){
-      approachPath=d.routes[0].geometry.coordinates.map(function(c){return [c[1],c[0]];});
-      var legs=d.routes[0].legs||[];
-      if(legs[0]&&legs[0].steps) approachSteps=legs[0].steps.map(function(st){ return {loc:[st.maneuver.location[1],st.maneuver.location[0]], text:osrmStepText(st)}; });
+    var tr=await fetch(API+"/route?full=1&from="+lat+","+lng+"&to="+s[0]+","+s[1]);
+    var td=await tr.json();
+    if(td && td.points && td.points.length>1){
+      approachPath=td.points;
+      approachSteps=(td.steps||[]).map(function(st){ return {loc:st.loc, text:st.text}; });
+      if(td.time_s){ approachEta={min:Math.max(1,Math.round(td.time_s/60)), delay:Math.round((td.traffic_delay_s||0)/60)}; approachEtaAt=Date.now(); }
+      viaTraffic=true;
     }
   }catch(e){}
+  // 2) fallback OSRM (fără trafic)
+  if(!viaTraffic){
+    try{
+      var url="https://router.project-osrm.org/route/v1/driving/"+lng+","+lat+";"+s[1]+","+s[0]+"?overview=full&geometries=geojson&steps=true";
+      var r=await fetch(url); var d=await r.json();
+      if(d&&d.routes&&d.routes[0]){
+        approachPath=d.routes[0].geometry.coordinates.map(function(c){return [c[1],c[0]];});
+        var legs=d.routes[0].legs||[];
+        if(legs[0]&&legs[0].steps) approachSteps=legs[0].steps.map(function(st){ return {loc:[st.maneuver.location[1],st.maneuver.location[0]], text:osrmStepText(st)}; });
+      }
+    }catch(e){}
+  }
   if(approachPath.length<2) approachPath=[[lat,lng],[s[0],s[1]]]; // fallback: linie dreaptă
   // pentru fiecare manevră, reține indexul ei pe traseu (ca să avansăm după progres)
   approachSteps.forEach(function(st){ st.pathIdx=nearestPathIdx(approachPath, st.loc); });
   if(map) approachLine=L.polyline(approachPath,{color:"#eab54a",weight:5,opacity:.9,dashArray:"2 9",lineCap:"round"}).addTo(map);
-  toast("Te duc întâi la start ("+(haversine(lat,lng,s[0],s[1])/1000).toFixed(1)+" km)");
+  var km=(haversine(lat,lng,s[0],s[1])/1000).toFixed(1);
+  toast(viaTraffic ? ("Rută spre start ocolind ambuteiajele ("+km+" km)") : ("Te duc întâi la start ("+km+" km)"));
 }
 function nearestPathIdx(path,ll){
   var bi=0,bd=Infinity;

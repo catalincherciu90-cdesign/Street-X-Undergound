@@ -401,20 +401,34 @@ export default {
         }
       }
 
-      // Rutare cu trafic (TomTom) — pentru ETA realist până la START.
+      // Rutare cu trafic (TomTom) — ETA realist + traseu care ocolește ambuteiajele.
       if (path === "/route" && request.method === "GET") {
         if (!env.TOMTOM_KEY) return json({ error: "no_key" });
         const from = url.searchParams.get("from"), to = url.searchParams.get("to");
         if (!from || !to) return json({ error: "bad_params" }, 400);
-        const u = "https://api.tomtom.com/routing/1/calculateRoute/" + encodeURIComponent(from) + ":" + encodeURIComponent(to) +
+        const full = url.searchParams.get("full") === "1";
+        let u = "https://api.tomtom.com/routing/1/calculateRoute/" + encodeURIComponent(from) + ":" + encodeURIComponent(to) +
           "/json?traffic=true&travelMode=car&routeType=fastest&key=" + env.TOMTOM_KEY;
+        if (full) u += "&instructionsType=text&language=ro-RO";
         try {
           const r = await fetch(u, { cf: { cacheTtl: 30, cacheEverything: true } });
           if (!r.ok) return json({ error: "upstream" });
           const d = await r.json();
-          const s = d && d.routes && d.routes[0] && d.routes[0].summary;
+          const rt = d && d.routes && d.routes[0];
+          const s = rt && rt.summary;
           if (!s) return json({ error: "none" });
-          return json({ distance_m: s.lengthInMeters, time_s: s.travelTimeInSeconds, traffic_delay_s: s.trafficDelayInSeconds || 0 });
+          const out = { distance_m: s.lengthInMeters, time_s: s.travelTimeInSeconds, traffic_delay_s: s.trafficDelayInSeconds || 0 };
+          if (full) {
+            const points = [];
+            (rt.legs || []).forEach((leg) => (leg.points || []).forEach((p) => points.push([p.latitude, p.longitude])));
+            const steps = ((rt.guidance && rt.guidance.instructions) || []).map((ins) => ({
+              loc: ins.point ? [ins.point.latitude, ins.point.longitude] : null,
+              text: ins.message || (ins.street ? ("Continuă pe " + ins.street) : "Continuă"),
+            })).filter((x) => x.loc);
+            out.points = points;
+            out.steps = steps;
+          }
+          return json(out);
         } catch (e) { return json({ error: "net" }); }
       }
 
