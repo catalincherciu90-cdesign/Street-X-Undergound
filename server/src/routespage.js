@@ -158,6 +158,8 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
     padding:6px 14px;font-family:var(--mono);font-size:14px;color:var(--t1)}
   .navinfo b{color:var(--cyan)}
   .navinfo b.arrived{color:var(--acc)}
+  .navclock{margin-top:3px;text-align:center;font-family:var(--mono);font-weight:700;font-size:19px;color:#eab54a;text-shadow:0 0 8px rgba(234,181,74,.55)}
+  .navclock.done{color:var(--acc)}
   body.approach-on .navinfo b{color:#eab54a}
   body.approach-on .compass{border-color:#eab54a;box-shadow:0 0 16px rgba(234,181,74,.5)}
   #recenterBtn{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);z-index:702;display:none;
@@ -282,6 +284,7 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
       </svg>
     </div>
     <div class="navinfo"><b id="navRemain">—</b> <span id="navNext"></span></div>
+    <div class="navclock" id="navClock" style="display:none">0:00.00</div>
   </div>
   <button id="navExit" onclick="exitNav()"><span data-ic="x"></span> Ieși</button>
   <button id="recenterBtn" onclick="recenterNav()"><span data-ic="nav" data-sz="16"></span> Recentrează</button>
@@ -895,26 +898,28 @@ function ttBanner(html,kind,sticky){
 function ttHideBanner(){ var b=document.getElementById("ttBanner"); if(b) b.classList.remove("show"); if(ttBannerTimer){ clearTimeout(ttBannerTimer); ttBannerTimer=null; } }
 function startTtClock(){ stopTtClock(); ttClockTimer=setInterval(function(){
   if(!ttStarted||ttFinished) return;
-  var el=document.getElementById("navRemain"); if(el){ el.textContent=fmtClock((Date.now()-ttT0)/1000); el.className=""; }
+  var el=document.getElementById("navClock"); if(el){ el.textContent=fmtClock((Date.now()-ttT0)/1000); }
 },100); }
 function stopTtClock(){ if(ttClockTimer){ clearInterval(ttClockTimer); ttClockTimer=null; } }
 let ttT0=0;
+// pornește cronometrul la trecerea START-ului (orice traseu, nu doar contra-timp)
 function ttStartRun(){
-  if(!ttMode||ttStarted) return;
+  if(ttStarted) return;
   ttStarted=true; ttT0=Date.now();
-  ttBanner("START!","start",false);
+  var nc=document.getElementById("navClock"); if(nc){ nc.style.display="block"; nc.classList.remove("done"); nc.textContent="0:00.00"; }
+  if(ttMode) ttBanner("START!","start",false); else toast("Start — cronometrez ⏱");
   startTtClock();
 }
 function ttFinishRun(){
-  if(!ttMode||!ttStarted||ttFinished) return;
+  if(!ttStarted||ttFinished) return;
   ttFinished=true; stopTtClock();
   var s=(Date.now()-ttT0)/1000;
-  var el=document.getElementById("navRemain"); if(el){ el.textContent=fmtClock(s); el.className="arrived"; }
+  var nc=document.getElementById("navClock"); if(nc){ nc.textContent=fmtClock(s); nc.classList.add("done"); }
   var prev=ttBest[ttRouteId]; var rec=(!prev||s<prev);
-  if(rec){ ttBest[ttRouteId]=s; saveTtBest(ttBest); }
+  if(rec){ ttBest[ttRouteId]=s; saveTtBest(ttBest); if(tab!=="rec") renderList(); }
   var sub=rec?"<br><span style='color:#22e08a'>RECORD NOU!</span>":(prev?"<br><span style='color:#b9ccc0;font-size:16px'>record: "+fmtClock(prev)+"</span>":"");
   ttBanner("FINISH<br>"+fmtClock(s)+sub,"finish",true);
-  toast(rec?"Record nou! 🏁 "+fmtClock(s):"Timp: "+fmtClock(s));
+  toast(rec?"Record nou! 🏁 "+fmtClock(s):"Timp pe traseu: "+fmtClock(s));
 }
 function parseMaxspeed(ms){
   if(ms==null) return null; ms=(""+ms).toLowerCase().trim();
@@ -976,6 +981,7 @@ async function startNav(id,tt){
     if(!r.ok||!d.geometry||d.geometry.length<2){ toast(d.error||"Traseu indisponibil."); return; }
     navRoute=d.geometry; lastNavPos=null; navOn=true;
     ttMode=!!tt; ttRouteId=id; ttStarted=false; ttFinished=false; ttAnnounced=false; stopTtClock(); ttHideBanner();
+    var ncEl=document.getElementById("navClock"); if(ncEl){ ncEl.style.display="none"; ncEl.classList.remove("done"); }
     if(ttMode) toast("Contra-timp — du-te la START, cronometrez de la linia de start.");
     navStage=null; startPt=navRoute[0]; approachPath=[]; approachSteps=[]; approachStepIdx=1;
     approachEta=null; approachEtaAt=0;
@@ -999,6 +1005,7 @@ async function startNav(id,tt){
 function exitNav(){
   navOn=false; navStage=null;
   ttMode=false; ttStarted=false; ttFinished=false; stopTtClock(); ttHideBanner();
+  var ncEl2=document.getElementById("navClock"); if(ncEl2){ ncEl2.style.display="none"; ncEl2.classList.remove("done"); }
   document.body.classList.remove("nav-on"); document.body.classList.remove("approach-on");
   var rb=document.getElementById("recenterBtn"); if(rb) rb.style.display="none";
   if(approachLine){ map.removeLayer(approachLine); approachLine=null; }
@@ -1082,7 +1089,7 @@ function switchToRoute(lat,lng){
   document.body.classList.remove("approach-on");
   if(approachLine){ map.removeLayer(approachLine); approachLine=null; }
   approachPath=[]; approachSteps=[];
-  if(ttMode) ttStartRun(); else toast("Ai ajuns la start! 🏁 Traseul începe.");
+  ttStartRun();
   routeGuide(lat,lng,0,null);
 }
 function approachGuide(lat,lng,spd,heading){
@@ -1127,7 +1134,7 @@ function navPos(p){
   if(navStage===null){
     var d0=haversine(lat,lng,startPt[0],startPt[1]);
     if(d0>60){ navStage="approach"; document.body.classList.add("approach-on"); buildApproach(lat,lng); }
-    else { navStage="route"; if(ttMode) ttStartRun(); }
+    else { navStage="route"; ttStartRun(); }
   }
   if(navStage==="approach"){ approachGuide(lat,lng,spd,heading); lastNavPos=[lat,lng]; return; }
   routeGuide(lat,lng,spd,heading);
@@ -1146,19 +1153,16 @@ function routeGuide(lat,lng,spd,heading){
   for(var i=idx;i<navRoute.length-1;i++) rem+=haversine(navRoute[i][0],navRoute[i][1],navRoute[i+1][0],navRoute[i+1][1]);
   var end=navRoute[navRoute.length-1], toEnd=haversine(lat,lng,end[0],end[1]);
   var remEl=document.getElementById("navRemain"), nextEl=document.getElementById("navNext");
-  // mod contra-timp: cronometrul deține afișajul; oprim la FINISH
-  if(ttMode && ttStarted){
-    if(toEnd<20 && !ttFinished){ ttFinishRun(); if(arrow) arrow.style.opacity="0.3"; return; }
-    if(!ttFinished){ if(nextEl) nextEl.textContent="· "+spd+" km/h · contra-timp"; if(arrow) arrow.style.opacity="1"; }
-    return;
-  }
-  if(toEnd<20){
+  // ai ajuns la FINISH doar dacă ai parcurs traseul (idx aproape de capăt) — nu la start pe buclă
+  var atFinish = (idx>=navRoute.length-3 && toEnd<30);
+  if(atFinish){
+    if(ttStarted && !ttFinished) ttFinishRun();
     if(remEl){ remEl.textContent="Ai ajuns"; remEl.className="arrived"; }
     if(nextEl) nextEl.textContent="";
     if(arrow) arrow.style.opacity="0.3";
   } else {
     if(remEl){ remEl.textContent=(rem<1000?Math.round(rem)+" m":(rem/1000).toFixed(1)+" km")+" rămas"; remEl.className=""; }
-    if(nextEl) nextEl.textContent="· "+spd+" km/h";
+    if(nextEl) nextEl.textContent="· "+spd+" km/h"+(ttStarted&&!ttFinished?" · ⏱":"");
     if(arrow) arrow.style.opacity="1";
   }
 }
