@@ -1034,6 +1034,17 @@ export default {
           }
         }
 
+        // --- Traseul înregistrat în fundal (din pozițiile trimise de serviciul nativ) ---
+        if (path === "/api/my/track" && request.method === "GET") {
+          const from = Number(url.searchParams.get("from")) || 0;
+          const to = Number(url.searchParams.get("to")) || Date.now();
+          const rows = await env.DB.prepare(
+            "SELECT lat, lng FROM locations WHERE device_id=? AND recorded_at>=? AND recorded_at<=? ORDER BY recorded_at ASC LIMIT 20000"
+          ).bind(dev.id, from, to).all();
+          const points = (rows.results || []).map((r) => [r.lat, r.lng]);
+          return json({ points });
+        }
+
         // --- Alerte comunitare (poliție, radar, groapă, pericol, accident, blocaj) ---
         const ALERT_TTL = { police: 1800, radar: 3600, accident: 5400, hazard: 5400, pothole: 259200, block: 7200 };
         // Raportează o alertă la poziția curentă

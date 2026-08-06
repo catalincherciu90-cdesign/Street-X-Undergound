@@ -773,16 +773,19 @@ function locateMe(){
 }
 
 // ---- înregistrare ----
-let recording=false,recPts=[],recDist=0,recStart=0,geoWatch=null,timeTimer=null;
+let recording=false,recPts=[],recDist=0,recStart=0,geoWatch=null,timeTimer=null,recNative=false;
+function nativeRec(){ try{ return !!(window.SXURec && window.SXURec.available && window.SXURec.available()); }catch(e){ return false; } }
 function toggleRec(){ recording?stopRec():startRec(); }
 function startRec(){
   if(!navigator.geolocation){ toast("GPS indisponibil pe acest dispozitiv."); return; }
   clearRecDraft();
   recPts=[];recDist=0;recStart=Date.now();recording=true;
+  recNative=nativeRec();
+  if(recNative){ try{ window.SXURec.startRec(); }catch(e){ recNative=false; } }
   if(recLine){map.removeLayer(recLine);recLine=null;}
   document.getElementById("liveStats").classList.add("on");
   var b=document.getElementById("recBtn");b.className="recbtn stop";b.innerHTML=ic("rec")+" Stop & salvează";
-  document.getElementById("recHint").textContent="Înregistrez… condu pe traseul dorit.";
+  document.getElementById("recHint").textContent=recNative?"Înregistrez… merge și cu ecranul stins sau aplicația minimizată.":"Înregistrez… condu pe traseul dorit.";
   updateStats();
   timeTimer=setInterval(updateStats,1000);
   geoWatch=navigator.geolocation.watchPosition(onPos,function(){toast("Nu pot citi GPS-ul.");},{enableHighAccuracy:true,maximumAge:2000,timeout:15000});
@@ -835,8 +838,43 @@ function stopRec(){
   if(timeTimer){clearInterval(timeTimer);timeTimer=null;}
   var b=document.getElementById("recBtn");b.className="recbtn start";b.innerHTML=ic("rec")+" Start înregistrare";
   document.getElementById("recHint").textContent='Apasă „Start" și condu — traseul se desenează singur.';
+  if(recNative){
+    try{ window.SXURec.stopRec(); }catch(e){}
+    fetchTrackAndSave();
+    return;
+  }
   if(recPts.length<2){ toast("Traseu prea scurt. Condu puțin mai mult."); document.getElementById("liveStats").classList.remove("on"); clearRecDraft(); return; }
   openSaveSheet();
+}
+function trackDist(pts){ var d=0; for(var i=1;i<pts.length;i++){ var seg=haversine(pts[i-1][0],pts[i-1][1],pts[i][0],pts[i][1]); if(seg<200) d+=seg; } return d; }
+function simplifyTrack(pts){
+  if(!pts||pts.length<2) return pts||[];
+  var out=[pts[0]];
+  for(var i=1;i<pts.length;i++){ var last=out[out.length-1]; if(haversine(last[0],last[1],pts[i][0],pts[i][1])>=4) out.push(pts[i]); }
+  return out;
+}
+// La oprire, ia traseul complet din pozițiile serviciului nativ (inclusiv cele din fundal).
+async function fetchTrackAndSave(){
+  document.getElementById("recHint").textContent="Pregătesc traseul…";
+  var stop=Date.now();
+  try{
+    var r=await fetch(API+"/api/my/track?from="+recStart+"&to="+stop,{headers:hdr()});
+    var d=await r.json();
+    var pts=simplifyTrack(d.points||[]);
+    if(pts.length>=2){
+      recPts=pts; recDist=trackDist(pts);
+      if(recLine){map.removeLayer(recLine);recLine=null;}
+      recLine=L.polyline(recPts,{color:"#8bf9ff",weight:5,opacity:.95,className:"glowline"}).addTo(map);
+      try{ map.fitBounds(L.polyline(recPts).getBounds().pad(0.2)); }catch(e){}
+      saveRecDraft(); openSaveSheet(); return;
+    }
+  }catch(e){}
+  // fallback: ce a prins WebView-ul (cât a fost în prim-plan)
+  if(recPts.length>=2){ recDist=trackDist(recPts); openSaveSheet(); return; }
+  toast("Traseu prea scurt sau fără poziții GPS.");
+  document.getElementById("liveStats").classList.remove("on");
+  document.getElementById("recHint").textContent='Apasă „Start" și condu — traseul se desenează singur.';
+  clearRecDraft();
 }
 function discardRec(){
   document.getElementById("saveModal").classList.remove("on");

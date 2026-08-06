@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.webkit.GeolocationPermissions
+import android.webkit.JavascriptInterface
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
@@ -12,6 +13,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 
 /**
  * Deschide o pagină web a aplicației (chat /driver sau trasee /routes) într-un WebView.
@@ -55,6 +57,9 @@ class CoursesActivity : AppCompatActivity() {
         web.settings.domStorageEnabled = true
         web.settings.allowFileAccess = true
         web.settings.setGeolocationEnabled(true)
+        // Punte JS↔nativ: înregistrarea traseului merge și cu aplicația minimizată
+        // (pornește serviciul de locație în fundal, cu notificare).
+        web.addJavascriptInterface(RecBridge(), "SXURec")
         // Nu cachea pagina — ia mereu versiunea proaspătă de pe server.
         web.settings.cacheMode = android.webkit.WebSettings.LOAD_NO_CACHE
         web.webViewClient = object : WebViewClient() {
@@ -120,5 +125,27 @@ class CoursesActivity : AppCompatActivity() {
     override fun onBackPressed() {
         if (::web.isInitialized && web.canGoBack()) web.goBack()
         else super.onBackPressed()
+    }
+
+    /** Expus paginii web ca `window.SXURec` — pornește/oprește tracking-ul nativ pentru înregistrare în fundal. */
+    inner class RecBridge {
+        private var startedByRec = false
+        @JavascriptInterface fun available(): Boolean = true
+        @JavascriptInterface fun startRec() {
+            if (!Prefs.isRunning(this@CoursesActivity)) {
+                startedByRec = true
+                ContextCompat.startForegroundService(
+                    this@CoursesActivity, Intent(this@CoursesActivity, LocationService::class.java)
+                )
+            } else {
+                startedByRec = false
+            }
+        }
+        @JavascriptInterface fun stopRec() {
+            if (startedByRec) {
+                stopService(Intent(this@CoursesActivity, LocationService::class.java))
+                startedByRec = false
+            }
+        }
     }
 }
