@@ -49,7 +49,9 @@ export const JOIN_HTML = /* html */ `<!doctype html>
 
   <div class="ok-box" id="okBox">
     <div class="big">Cont creat! 🏁</div>
-    <div class="note">Deschide aplicația <b>Street X Underground</b> și loghează-te cu utilizatorul și parola tale.<br>Dacă n-ai aplicația, cere linkul de descărcare celui care te-a invitat.</div>
+    <div class="note">Descarcă aplicația <b>Street X Underground</b>, instaleaz-o și loghează-te cu utilizatorul și parola alese.</div>
+    <a href="/app.apk" download="street-x-underground.apk" style="display:block;text-decoration:none"><button type="button">⬇️ Descarcă aplicația (Android)</button></a>
+    <div class="note" style="margin-top:12px">Dacă apare un avertisment la instalare, permite „instalarea din surse necunoscute" pentru browserul tău. Aplicația e doar pentru Android.</div>
   </div>
 </div>
 
