@@ -1,0 +1,118 @@
+name: Deploy platform (Cloudflare)
+
+# Deploy-ul se face prin Cloudflare Workers Builds (integrarea Git din dashboard).
+# Acest workflow rămâne disponibil doar manual, ca alternativă / backup.
+on:
+  workflow_dispatch:
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verifică secretele necesare
+        env:
+          ADMIN_PASS: ${{ secrets.WORKER_ADMIN_PASS }}
+          AUTH_SECRET: ${{ secrets.WORKER_AUTH_SECRET }}
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "::error::Lipsește secretul CLOUDFLARE_API_TOKEN"; exit 1; }
+          test -n "$ADMIN_PASS"          || { echo "::error::Lipsește secretul WORKER_ADMIN_PASS"; exit 1; }
+          test -n "$AUTH_SECRET"         || { echo "::error::Lipsește secretul WORKER_AUTH_SECRET"; exit 1; }
+
+      # ---------- 1) Compilează APK-ul ----------
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Build debug APK
+        working-directory: android
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      - name: Pune APK-ul în public/ (servit la /app.apk)
+        run: |
+          mkdir -p server/public
+          cp android/app/build/outputs/apk/debug/app-debug.apk server/public/app.apk
+          ls -la server/public
+
+      - name: Publică APK-ul și ca artifact (backup)
+        uses: actions/upload-artifact@v4
+        with:
+          name: gps-tracker-apk
+          path: server/public/app.apk
+          if-no-files-found: error
+
+      # ---------- 2) Publică platforma pe Cloudflare ----------
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Instalează wrangler
+        working-directory: server
+        run: npm install
+
+      - name: Găsește/creează baza D1 și injectează id-ul
+        working-directory: server
+        run: |
+          set -e
+          find_id() { npx wrangler d1 list --json | jq -r '.[] | select(.name=="gps-tracker") | .uuid' | head -n1; }
+          DBID=$(find_id)
+          if [ -z "$DBID" ] || [ "$DBID" = "null" ]; then
+            echo "Creez baza de date gps-tracker..."
+            npx wrangler d1 create gps-tracker
+            DBID=$(find_id)
+          fi
+          test -n "$DBID" && test "$DBID" != "null"
+          echo "database_id = $DBID"
+          sed -i "s/PUNE_AICI_DATABASE_ID/$DBID/" wrangler.toml
+
+      - name: Găsește/creează namespace-ul KV pentru documente
+        working-directory: server
+        run: |
+          set -e
+          find_kv() { npx wrangler kv namespace list | jq -r '.[] | select(.title=="gps-tracker-DOCS") | .id' | head -n1; }
+          KVID=$(find_kv)
+          if [ -z "$KVID" ] || [ "$KVID" = "null" ]; then
+            echo "Creez namespace-ul KV DOCS..."
+            npx wrangler kv namespace create DOCS
+            KVID=$(find_kv)
+          fi
+          test -n "$KVID" && test "$KVID" != "null"
+          echo "kv id = $KVID"
+          sed -i "s/PUNE_AICI_KV_ID/$KVID/" wrangler.toml
+
+      - name: Publică worker-ul
+        working-directory: server
+        run: npx wrangler deploy
+
+      - name: Setează secretele worker-ului
+        working-directory: server
+        env:
+          ADMIN_PASS: ${{ secrets.WORKER_ADMIN_PASS }}
+          AUTH_SECRET: ${{ secrets.WORKER_AUTH_SECRET }}
+          ADMIN_USER: ${{ secrets.WORKER_ADMIN_USER }}
+        run: |
+          printf '%s' "$ADMIN_PASS"  | npx wrangler secret put ADMIN_PASS
+          printf '%s' "$AUTH_SECRET" | npx wrangler secret put AUTH_SECRET
+          if [ -n "$ADMIN_USER" ]; then
+            printf '%s' "$ADMIN_USER" | npx wrangler secret put ADMIN_USER
+          fi
+
+      - name: Gata
+        run: echo "Deploy finalizat. APK-ul e disponibil pe site la /app.apk."

@@ -1,0 +1,31 @@
+name = "street-x-undergound"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+
+# Fișiere statice servite direct (ex. APK-ul aplicației la /app.apk).
+# La build, CI copiază app-debug.apk în public/app.apk.
+[assets]
+directory = "./public"
+
+# Baza de date D1. Creeaz-o cu:
+#   wrangler d1 create gps-tracker
+# apoi copiază database_id-ul întors mai jos.
+[[d1_databases]]
+binding = "DB"
+database_name = "street-x-undergound"
+database_id = "b8bc1a0f-7ce3-4c59-9fb5-1a69e844446d"
+
+# Stocarea documentelor atașate la curse (poze/PDF). CI creează namespace-ul
+# și injectează id-ul mai jos. Creare manuală:  wrangler kv namespace create DOCS
+[[kv_namespaces]]
+binding = "DOCS"
+id = "d311aaf627cb4ead8514d35fc63f7019"
+
+# Secretele NU se pun aici (sunt sensibile). Le setezi cu:
+#   wrangler secret put ADMIN_PASS
+#   wrangler secret put AUTH_SECRET
+#   wrangler secret put ADMIN_USER   (opțional, default "admin")
+
+# Deploy declanșat prin GitHub Actions (secretele setate în repo).
+
+# deploy via GitHub Actions (wrangler)

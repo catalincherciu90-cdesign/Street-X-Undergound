@@ -1,0 +1,37 @@
+name: Deploy Worker
+
+# Publică worker-ul (server/) prin wrangler deploy — independent de Cloudflare Workers Builds.
+# Necesită un singur secret în repo: CLOUDFLARE_API_TOKEN (account ID e mai jos, nu e secret).
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main", "claude/**" ]
+    paths:
+      - "server/**"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Verifică secretul
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "::error::Lipsește secretul CLOUDFLARE_API_TOKEN (Settings → Secrets and variables → Actions)"; exit 1; }
+
+      - name: Deploy pe Cloudflare
+        working-directory: server
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: "82747da4d708726f25d23185bace8fbd"
+        run: |
+          npm install
+          npx wrangler deploy
