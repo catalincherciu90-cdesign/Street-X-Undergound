@@ -47,6 +47,10 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
     display:grid;place-items:center;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5)}
   #poiBtn:active{transform:scale(.94)}
   #poiBtn.on{background:#4d9fff;border-color:transparent;color:#0a1420}
+  #wazeBtn{position:absolute;right:12px;bottom:374px;z-index:600;width:48px;height:48px;border-radius:50%;
+    background:rgba(18,26,22,.94);border:1px solid var(--line2);color:var(--cyan);
+    display:grid;place-items:center;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5)}
+  #wazeBtn:active{transform:scale(.94)}
   .glowline{filter:drop-shadow(0 0 3px rgba(125,249,255,.9)) drop-shadow(0 0 7px rgba(34,224,138,.5))}
   #locBtn{position:absolute;right:12px;bottom:14px;z-index:600;width:48px;height:48px;border-radius:50%;
     background:rgba(18,26,22,.94);border:1px solid var(--line2);color:var(--acc);font-size:22px;
@@ -299,6 +303,7 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
   <div id="ttBanner"></div>
   <button id="clearBtn" onclick="clearRouteView()"><span data-ic="x" data-sz="15"></span> Anulează</button>
   <div id="speedo"><b id="spVal">0</b><span>km/h</span></div>
+  <button id="wazeBtn" onclick="openWazeApp()" title="Deschide Waze (side-by-side în split-screen)"><span data-ic="nav" data-sz="22"></span></button>
   <button id="poiBtn" onclick="togglePoi()" title="Benzinării în zonă"><span data-ic="fuel" data-sz="22"></span></button>
   <button id="trafBtn" onclick="toggleTraffic()" title="Trafic live"><span data-ic="traffic" data-sz="22"></span></button>
   <button id="hdgBtn" onclick="toggleHeadingUp()" title="Hartă pe direcția de mers"><span data-ic="compass" data-sz="22"></span></button>
@@ -597,6 +602,12 @@ async function voteAlert(id,v){
 }
 function startAlerts(){ loadAlerts(); if(alertTimer) clearInterval(alertTimer); alertTimer=setInterval(loadAlerts,15000); if(map) map.on("moveend",loadAlerts); }
 
+// deschide direct aplicația Waze (buton de pe hartă) — side-by-side în split-screen
+function openWazeApp(){
+  if(window.SXURec && window.SXURec.openWazeApp){ try{ window.SXURec.openWazeApp(); toast("Deschid Waze… (pentru side-by-side pornește split-screen din Recente)"); return; }catch(e){} }
+  var c=map?map.getCenter():null;
+  try{ window.location.href = c ? ("https://waze.com/ul?ll="+c.lat+","+c.lng) : "https://waze.com/ul"; }catch(e){ toast("Nu pot deschide Waze."); }
+}
 // deschide Waze cu navigație către un punct (side-by-side dacă ești în split-screen)
 function openWaze(lat,lng){
   if(window.SXURec && window.SXURec.openWaze){ try{ window.SXURec.openWaze(lat,lng); toast("Deschid Waze… (pentru side-by-side, pornește split-screen din Recente)"); return; }catch(e){} }

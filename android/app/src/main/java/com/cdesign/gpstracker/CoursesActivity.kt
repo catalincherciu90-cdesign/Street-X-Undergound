@@ -160,5 +160,19 @@ class CoursesActivity : AppCompatActivity() {
                 try { startActivity(Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (e2: Exception) {}
             }
         }
+        /** Deschide aplicația Waze (fără destinație). Side-by-side dacă ești în split-screen. */
+        @JavascriptInterface fun openWazeApp() {
+            try {
+                val i = packageManager.getLaunchIntentForPackage("com.waze")
+                if (i != null) {
+                    i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT)
+                    startActivity(i)
+                    return
+                }
+            } catch (e: Exception) {}
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://waze.com/ul")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            } catch (e: Exception) {}
+        }
     }
 }
