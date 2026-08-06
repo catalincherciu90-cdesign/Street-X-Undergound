@@ -21,6 +21,7 @@
 import { DASHBOARD_HTML } from "./dashboard.js";
 import { PAIR_HTML } from "./pairpage.js";
 import { DRIVER_HTML } from "./driverpage.js";
+import { JOIN_HTML } from "./joinpage.js";
 import { ROUTES_HTML } from "./routespage.js";
 
 const CORS = {
@@ -276,6 +277,12 @@ async function ensureSchema(env) {
     env.DB.prepare(
       "CREATE UNIQUE INDEX IF NOT EXISTS idx_alert_vote_uniq ON alert_votes (alert_id, device_id)"
     ),
+    // Invitații de înscriere (self-signup gated by code)
+    env.DB.prepare(
+      "CREATE TABLE IF NOT EXISTS invites (" +
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, code TEXT NOT NULL UNIQUE, label TEXT, group_name TEXT NOT NULL DEFAULT 'General', " +
+        "max_uses INTEGER NOT NULL DEFAULT 0, uses INTEGER NOT NULL DEFAULT 0, expires_at INTEGER, created_at INTEGER NOT NULL)"
+    ),
     // Prietenii: o legătură se salvează o singură dată (a<b).
     env.DB.prepare(
       "CREATE TABLE IF NOT EXISTS friendships (" +
@@ -341,6 +348,13 @@ export default {
       // Pagina șoferului (chat) — deschisă în aplicație
       if (path === "/driver") {
         return new Response(DRIVER_HTML, {
+          headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
+        });
+      }
+
+      // Pagina publică de înscriere prin invitație
+      if (path === "/join") {
+        return new Response(JOIN_HTML, {
           headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
         });
       }
@@ -538,6 +552,45 @@ export default {
           return json({ error: "Utilizator sau parolă greșită" }, 401);
         }
         return json({ key: dev.api_key, name: dev.name, id: dev.id, has_avatar: dev.has_avatar });
+      }
+
+      // --- Invitații: validare cod (public) ---
+      const invGet = path.match(/^\/api\/invite\/([A-Za-z0-9]+)$/);
+      if (invGet && request.method === "GET") {
+        const code = invGet[1].toUpperCase();
+        const inv = await env.DB.prepare("SELECT * FROM invites WHERE code=?").bind(code).first();
+        if (!inv) return json({ valid: false, error: "Invitație inexistentă." }, 404);
+        const now = Date.now();
+        if (inv.expires_at && now > inv.expires_at) return json({ valid: false, error: "Invitația a expirat." }, 410);
+        if (inv.max_uses > 0 && inv.uses >= inv.max_uses) return json({ valid: false, error: "Invitația a fost folosită de prea multe ori." }, 410);
+        return json({ valid: true, label: inv.label || null, group: inv.group_name });
+      }
+
+      // --- Înscriere prin invitație (public) -> creează cont ---
+      if (path === "/api/signup" && request.method === "POST") {
+        const b = await request.json().catch(() => ({}));
+        const code = (b.code || "").trim().toUpperCase();
+        const name = (b.name || "").trim();
+        const username = (b.username || "").trim();
+        const password = b.password || "";
+        if (!code) return json({ error: "Lipsește codul invitației." }, 400);
+        if (!name) return json({ error: "Pune numele tău." }, 400);
+        if (username.length < 3) return json({ error: "Utilizator prea scurt." }, 400);
+        if (password.length < 4) return json({ error: "Parolă prea scurtă." }, 400);
+        const inv = await env.DB.prepare("SELECT * FROM invites WHERE code=?").bind(code).first();
+        if (!inv) return json({ error: "Invitație invalidă." }, 404);
+        const now = Date.now();
+        if (inv.expires_at && now > inv.expires_at) return json({ error: "Invitația a expirat." }, 410);
+        if (inv.max_uses > 0 && inv.uses >= inv.max_uses) return json({ error: "Invitația a fost epuizată." }, 410);
+        const exists = await env.DB.prepare("SELECT id FROM devices WHERE username=?").bind(username).first();
+        if (exists) return json({ error: "Utilizatorul există deja. Alege altul." }, 409);
+        const apiKey = randomKey();
+        const ph = await hashPassword(password);
+        await env.DB.prepare(
+          "INSERT INTO devices (name, group_name, api_key, created_at, username, password_hash) VALUES (?,?,?,?,?,?)"
+        ).bind(name.slice(0, 80), inv.group_name || "General", apiKey, now, username.slice(0, 40), ph).run();
+        await env.DB.prepare("UPDATE invites SET uses=uses+1 WHERE id=?").bind(inv.id).run();
+        return json({ ok: true, name });
       }
 
       // --- Ingest poziție de la telefon ---
@@ -1046,6 +1099,44 @@ export default {
       }
 
       // --- Rute care necesită admin ---
+      // --- Invitații (admin): creează / listează / revocă ---
+      if (path.startsWith("/api/invites")) {
+        const admin = await requireAdmin(request, env);
+        if (!admin) return json({ error: "neautorizat" }, 401);
+
+        if (path === "/api/invites" && request.method === "POST") {
+          const b = await request.json().catch(() => ({}));
+          const label = (b.label || "").trim().slice(0, 60) || null;
+          const group = (b.group || "General").trim().slice(0, 40) || "General";
+          let maxUses = Math.round(Number(b.max_uses)); if (!Number.isFinite(maxUses) || maxUses < 0) maxUses = 0;
+          let days = Math.round(Number(b.days)); if (!Number.isFinite(days) || days < 0) days = 0;
+          const expires = days > 0 ? Date.now() + days * 86400000 : null;
+          let code = partyCode(8);
+          for (let i = 0; i < 6; i++) {
+            const ex = await env.DB.prepare("SELECT id FROM invites WHERE code=?").bind(code).first();
+            if (!ex) break;
+            code = partyCode(8);
+          }
+          const res = await env.DB.prepare(
+            "INSERT INTO invites (code, label, group_name, max_uses, uses, expires_at, created_at) VALUES (?,?,?,?,0,?,?)"
+          ).bind(code, label, group, maxUses, expires, Date.now()).run();
+          return json({ id: res.meta.last_row_id, code, label, group_name: group, max_uses: maxUses, uses: 0, expires_at: expires });
+        }
+
+        if (path === "/api/invites" && request.method === "GET") {
+          const rows = await env.DB.prepare("SELECT * FROM invites ORDER BY created_at DESC LIMIT 200").all();
+          return json({ invites: rows.results || [] });
+        }
+
+        const invDel = path.match(/^\/api\/invites\/(\d+)$/);
+        if (invDel && request.method === "DELETE") {
+          await env.DB.prepare("DELETE FROM invites WHERE id=?").bind(Number(invDel[1])).run();
+          return json({ ok: true });
+        }
+
+        return json({ error: "rută necunoscută" }, 404);
+      }
+
       if (path.startsWith("/api/devices")) {
         const admin = await requireAdmin(request, env);
         if (!admin) return json({ error: "neautorizat" }, 401);

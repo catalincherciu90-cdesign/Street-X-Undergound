@@ -282,6 +282,7 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
     <div class="tb-sp"></div>
     <div class="tb-actions">
       <button class="primary" onclick="openAdd()"><span data-ic="plus"></span> Dispozitiv</button>
+      <button onclick="openInvites()" title="Invită oameni"><span data-ic="user"></span> Invită</button>
       <button onclick="openRoutes()" title="Trasee"><span data-ic="route"></span> Trasee</button>
       <button onclick="refresh()" title="Reîmprospătează"><span data-ic="refresh"></span></button>
       <button class="opt" onclick="openLogo()" title="Logo"><span data-ic="image"></span></button>
@@ -436,6 +437,22 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
     <button class="primary" style="width:100%;margin-bottom:12px" onclick="startDraw()"><span data-ic="plus"></span> Desenează un traseu nou</button>
     <div id="routesBody">Se încarcă…</div>
     <div class="actions"><button onclick="closeRoutes()">Închide</button></div>
+  </div>
+</div>
+
+<div id="inviteModal" class="modal hidden">
+  <div class="card" style="width:560px;max-width:94vw;max-height:90vh;overflow:auto">
+    <h3><span data-ic="user" data-sz="20"></span> Invită oameni</h3>
+    <p style="color:var(--mut);font-size:13px;margin:0 0 12px">Creează un link de invitație. Cine îl deschide își face singur cont (nume, utilizator, parolă) și se poate loga în aplicație.</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+      <div><label style="font-size:12px;color:var(--mut)">Etichetă (opțional)</label><input id="invLabel" placeholder="ex: Grupul de vineri" /></div>
+      <div><label style="font-size:12px;color:var(--mut)">Grup</label><input id="invGroup" value="General" /></div>
+      <div><label style="font-size:12px;color:var(--mut)">Nr. maxim de utilizări (0 = nelimitat)</label><input id="invMax" type="number" value="0" min="0" /></div>
+      <div><label style="font-size:12px;color:var(--mut)">Expiră în (zile, 0 = niciodată)</label><input id="invDays" type="number" value="7" min="0" /></div>
+    </div>
+    <button class="primary" style="width:100%;margin-bottom:12px" onclick="createInvite()"><span data-ic="plus"></span> Creează invitație</button>
+    <div id="invitesBody">Se încarcă…</div>
+    <div class="actions"><button onclick="closeInvites()">Închide</button></div>
   </div>
 </div>
 
@@ -923,6 +940,51 @@ async function resetLogo(){
 let routeViewLayer=null, drawMode=false, drawPts=[], drawMarkers=[], drawLine=null;
 function openRoutes(){ document.getElementById("routesModal").classList.remove("hidden"); loadRoutes(); }
 function closeRoutes(){ document.getElementById("routesModal").classList.add("hidden"); }
+
+// ---- Invitații ----
+function openInvites(){ document.getElementById("inviteModal").classList.remove("hidden"); loadInvites(); }
+function closeInvites(){ document.getElementById("inviteModal").classList.add("hidden"); }
+function inviteLink(code){ return location.origin + "/join?code=" + encodeURIComponent(code); }
+async function createInvite(){
+  var body={ label:document.getElementById("invLabel").value.trim(), group:document.getElementById("invGroup").value.trim()||"General",
+    max_uses:parseInt(document.getElementById("invMax").value,10)||0, days:parseInt(document.getElementById("invDays").value,10)||0 };
+  try{
+    var r=await fetch(API+"/api/invites",{method:"POST",headers:h(token),body:JSON.stringify(body)});
+    if(r.ok){ document.getElementById("invLabel").value=""; loadInvites(); }
+    else { var d=await r.json(); alert(d.error||"Eroare la creare."); }
+  }catch(e){ alert("Eroare de rețea."); }
+}
+async function loadInvites(){
+  var box=document.getElementById("invitesBody"); if(!box) return;
+  try{
+    var r=await fetch(API+"/api/invites",{headers:h(token)}); var d=await r.json();
+    var list=d.invites||[];
+    if(!list.length){ box.innerHTML='<div style="color:var(--mut);font-size:13px;padding:8px 0">Nicio invitație încă. Creează una mai sus.</div>'; return; }
+    box.innerHTML=list.map(function(iv){
+      var link=inviteLink(iv.code);
+      var uses=iv.max_uses>0?(iv.uses+"/"+iv.max_uses):(iv.uses+" folosiri");
+      var exp=iv.expires_at?("expiră "+new Date(iv.expires_at).toLocaleDateString("ro-RO")):"fără expirare";
+      return '<div style="border:1px solid var(--line2);border-radius:12px;padding:10px 12px;margin-bottom:8px">'
+        +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+        +'<b style="font-family:ui-monospace,monospace;letter-spacing:.1em;color:var(--gold)">'+esc(iv.code)+'</b>'
+        +(iv.label?'<span style="color:var(--mut);font-size:12px">'+esc(iv.label)+'</span>':'')
+        +'<span style="color:var(--mut);font-size:12px">· grup '+esc(iv.group_name)+' · '+uses+' · '+exp+'</span></div>'
+        +'<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">'
+        +'<input readonly value="'+esc(link)+'" onclick="this.select()" style="flex:1;min-width:200px;font-size:12px" />'
+        +'<button onclick="copyInvite(\\''+esc(link)+'\\')"><span data-ic="clipboard"></span> Copiază link</button>'
+        +'<button onclick="revokeInvite('+iv.id+')"><span data-ic="trash"></span></button></div></div>';
+    }).join("");
+    fillIcons(box);
+  }catch(e){ box.innerHTML='<div style="color:var(--danger)">Eroare la încărcare.</div>'; }
+}
+function copyInvite(link){
+  if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(link).then(function(){ alert("Link copiat!"); },function(){ prompt("Copiază linkul:",link); }); }
+  else prompt("Copiază linkul:",link);
+}
+async function revokeInvite(id){
+  if(!confirm("Revoci această invitație?")) return;
+  try{ var r=await fetch(API+"/api/invites/"+id,{method:"DELETE",headers:h(token)}); if(r.ok) loadInvites(); else alert("Eroare."); }catch(e){ alert("Eroare de rețea."); }
+}
 async function loadRoutes(){
   document.getElementById("routesBody").innerHTML="Se încarcă…";
   try{
