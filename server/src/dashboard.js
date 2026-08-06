@@ -56,6 +56,22 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
     .kpis{display:none}
     .brand .logo{height:30px}
   }
+  /* ---- optimizări telefon ---- */
+  @media (max-width:560px){
+    #topbar{gap:8px;padding:0 10px}
+    .tbextra{display:none}
+    .tb-actions{gap:6px}
+    .tb-actions button:not(.primary){min-width:36px;padding:9px}
+    .tb-actions button.primary{padding:9px 11px;font-size:12px}
+    .brand .logo{height:26px;max-width:120px}
+    .modal{padding:8px}
+    .modal .card{width:96vw;max-width:96vw;padding:16px}
+    .invgrid{grid-template-columns:1fr}
+    input,select,textarea{font-size:16px}
+    #mapCtrls button{width:44px;height:44px}
+    .devacts button{padding:8px 10px}
+    .toolbar{padding:9px 10px}
+  }
 
   /* logo: glow static + un singur „boot" flicker la încărcare (fără pâlpâit continuu) */
   img[src$="brand/logo"]{filter:drop-shadow(0 0 6px rgba(34,224,138,.4));animation:logoBoot .9s steps(3,end) 1}
@@ -282,8 +298,8 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
     <div class="tb-sp"></div>
     <div class="tb-actions">
       <button class="primary" onclick="openAdd()"><span data-ic="plus"></span> Dispozitiv</button>
-      <button onclick="openInvites()" title="Invită oameni"><span data-ic="user"></span> Invită</button>
-      <button onclick="openRoutes()" title="Trasee"><span data-ic="route"></span> Trasee</button>
+      <button class="tbextra" onclick="openInvites()" title="Invită oameni"><span data-ic="user"></span> Invită</button>
+      <button class="tbextra" onclick="openRoutes()" title="Trasee"><span data-ic="route"></span> Trasee</button>
       <button onclick="refresh()" title="Reîmprospătează"><span data-ic="refresh"></span></button>
       <button class="opt" onclick="openLogo()" title="Logo"><span data-ic="image"></span></button>
       <a class="opt" href="/app.apk" download="street-x-underground.apk" title="Descarcă aplicația Android"><button><span data-ic="download"></span></button></a>
@@ -292,8 +308,10 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
   </div>
   <div id="side">
     <div class="sidetools">
-      <button onclick="openRoutes()"><span data-ic="route"></span> Trasee</button>
-      <button onclick="openLogo()"><span data-ic="image"></span> Logo</button>
+      <button onclick="closeSide();openAdd()"><span data-ic="plus"></span> Dispozitiv</button>
+      <button onclick="closeSide();openInvites()"><span data-ic="user"></span> Invită</button>
+      <button onclick="closeSide();openRoutes()"><span data-ic="route"></span> Trasee</button>
+      <button onclick="closeSide();openLogo()"><span data-ic="image"></span> Logo</button>
       <a href="/app.apk" download="street-x-underground.apk"><button><span data-ic="download"></span> App</button></a>
       <button onclick="logout()" style="margin-left:auto"><span data-ic="logout"></span> Ieșire</button>
     </div>
@@ -444,7 +462,7 @@ export const DASHBOARD_HTML = /* html */ `<!doctype html>
   <div class="card" style="width:560px;max-width:94vw;max-height:90vh;overflow:auto">
     <h3><span data-ic="user" data-sz="20"></span> Invită oameni</h3>
     <p style="color:var(--mut);font-size:13px;margin:0 0 12px">Creează un link de invitație. Cine îl deschide își face singur cont (nume, utilizator, parolă) și se poate loga în aplicație.</p>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+    <div class="invgrid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
       <div><label style="font-size:12px;color:var(--mut)">Etichetă (opțional)</label><input id="invLabel" placeholder="ex: Grupul de vineri" /></div>
       <div><label style="font-size:12px;color:var(--mut)">Grup</label><input id="invGroup" value="General" /></div>
       <div><label style="font-size:12px;color:var(--mut)">Nr. maxim de utilizări (0 = nelimitat)</label><input id="invMax" type="number" value="0" min="0" /></div>
@@ -537,6 +555,7 @@ function toggleSide(){
   document.getElementById("app").classList.toggle("side-hidden");
   setTimeout(function(){ if(map) map.invalidateSize(); }, 250);
 }
+function closeSide(){ if(isMobile()) document.getElementById("app").classList.add("side-hidden"); }
 
 // Stil vectorial „Street X Underground": uscat oliv, apă albastru-adânc, drumuri albe cu glow.
 // Sursă de dale vectoriale gratuită, fără cheie API (OpenFreeMap / schema OpenMapTiles).
