@@ -258,6 +258,24 @@ async function ensureSchema(env) {
     env.DB.prepare(
       "CREATE INDEX IF NOT EXISTS idx_pm_party ON party_members (party_id)"
     ),
+    // Alerte comunitare (poliție, radar, groapă, pericol, accident, blocaj)
+    env.DB.prepare(
+      "CREATE TABLE IF NOT EXISTS alerts (" +
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, lat REAL NOT NULL, lng REAL NOT NULL, " +
+        "device_id INTEGER, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, " +
+        "confirms INTEGER DEFAULT 1, denies INTEGER DEFAULT 0, removed INTEGER DEFAULT 0)"
+    ),
+    env.DB.prepare(
+      "CREATE INDEX IF NOT EXISTS idx_alerts_active ON alerts (removed, expires_at)"
+    ),
+    env.DB.prepare(
+      "CREATE TABLE IF NOT EXISTS alert_votes (" +
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, alert_id INTEGER NOT NULL, device_id INTEGER NOT NULL, " +
+        "vote INTEGER NOT NULL, created_at INTEGER NOT NULL)"
+    ),
+    env.DB.prepare(
+      "CREATE UNIQUE INDEX IF NOT EXISTS idx_alert_vote_uniq ON alert_votes (alert_id, device_id)"
+    ),
     // Prietenii: o legătură se salvează o singură dată (a<b).
     env.DB.prepare(
       "CREATE TABLE IF NOT EXISTS friendships (" +
@@ -961,6 +979,67 @@ export default {
             ).bind(dev.id, fid, text.slice(0, 1000), Date.now()).run();
             return json({ ok: true });
           }
+        }
+
+        // --- Alerte comunitare (poliție, radar, groapă, pericol, accident, blocaj) ---
+        const ALERT_TTL = { police: 1800, radar: 3600, accident: 5400, hazard: 5400, pothole: 259200, block: 7200 };
+        // Raportează o alertă la poziția curentă
+        if (path === "/api/my/alerts" && request.method === "POST") {
+          const b = await request.json().catch(() => ({}));
+          const type = (b.type || "").trim();
+          if (!ALERT_TTL[type]) return json({ error: "tip invalid" }, 400);
+          const lat = Number(b.lat), lng = Number(b.lng);
+          if (!isFinite(lat) || !isFinite(lng)) return json({ error: "lat/lng invalide" }, 400);
+          const now = Date.now();
+          const res = await env.DB.prepare(
+            "INSERT INTO alerts (type, lat, lng, device_id, created_at, expires_at, confirms, denies, removed) VALUES (?,?,?,?,?,?,1,0,0)"
+          ).bind(type, lat, lng, dev.id, now, now + ALERT_TTL[type] * 1000).run();
+          const aid = res.meta.last_row_id;
+          await env.DB.prepare("INSERT OR IGNORE INTO alert_votes (alert_id, device_id, vote, created_at) VALUES (?,?,?,?)")
+            .bind(aid, dev.id, 1, now).run();
+          return json({ id: aid });
+        }
+        // Alertele active dintr-o zonă (bbox=w,s,e,n)
+        if (path === "/api/my/alerts" && request.method === "GET") {
+          const bbox = (url.searchParams.get("bbox") || "").split(",").map(Number);
+          const now = Date.now();
+          let rows;
+          if (bbox.length === 4 && bbox.every((n) => isFinite(n))) {
+            rows = await env.DB.prepare(
+              "SELECT * FROM alerts WHERE removed=0 AND expires_at>? AND lat>=? AND lat<=? AND lng>=? AND lng<=? ORDER BY created_at DESC LIMIT 200"
+            ).bind(now, bbox[1], bbox[3], bbox[0], bbox[2]).all();
+          } else {
+            rows = await env.DB.prepare("SELECT * FROM alerts WHERE removed=0 AND expires_at>? ORDER BY created_at DESC LIMIT 200").bind(now).all();
+          }
+          const alerts = (rows.results || []).map((a) => ({
+            id: a.id, type: a.type, lat: a.lat, lng: a.lng,
+            age_s: Math.round((now - a.created_at) / 1000),
+            confirms: a.confirms, denies: a.denies,
+            mine: a.device_id === dev.id,
+          }));
+          return json({ alerts });
+        }
+        // Vot pe o alertă: v=1 (încă e aici) / v=-1 (a dispărut)
+        const avm = path.match(/^\/api\/my\/alerts\/(\d+)\/vote$/);
+        if (avm && request.method === "POST") {
+          const aid = Number(avm[1]);
+          const b = await request.json().catch(() => ({}));
+          const v = Number(b.v) >= 0 ? 1 : -1;
+          const al = await env.DB.prepare("SELECT type, expires_at FROM alerts WHERE id=?").bind(aid).first();
+          if (!al) return json({ error: "alertă inexistentă" }, 404);
+          const now = Date.now();
+          await env.DB.prepare(
+            "INSERT INTO alert_votes (alert_id, device_id, vote, created_at) VALUES (?,?,?,?) " +
+            "ON CONFLICT(alert_id, device_id) DO UPDATE SET vote=excluded.vote, created_at=excluded.created_at"
+          ).bind(aid, dev.id, v, now).run();
+          const cc = await env.DB.prepare("SELECT SUM(CASE WHEN vote=1 THEN 1 ELSE 0 END) AS c, SUM(CASE WHEN vote=-1 THEN 1 ELSE 0 END) AS d FROM alert_votes WHERE alert_id=?").bind(aid).first();
+          const confirms = (cc && cc.c) || 0, denies = (cc && cc.d) || 0;
+          const ttl = ALERT_TTL[al.type] || 3600;
+          const removed = (denies - confirms) >= 2 ? 1 : 0;
+          const newExp = v === 1 ? Math.max(al.expires_at, now + ttl * 1000) : al.expires_at;
+          await env.DB.prepare("UPDATE alerts SET confirms=?, denies=?, removed=?, expires_at=? WHERE id=?")
+            .bind(confirms, denies, removed, newExp, aid).run();
+          return json({ ok: true, confirms, denies, removed: !!removed });
         }
 
         return json({ error: "rută necunoscută" }, 404);

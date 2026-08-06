@@ -52,6 +52,14 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
     background:rgba(18,26,22,.94);border:1px solid var(--line2);color:var(--acc);font-size:22px;
     display:grid;place-items:center;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5)}
   #locBtn:active{transform:scale(.94)}
+  #reportBtn{position:absolute;left:12px;bottom:14px;z-index:601;width:52px;height:52px;border-radius:50%;
+    background:linear-gradient(180deg,#ff3b3b,#d81f1f);border:none;color:#fff;display:grid;place-items:center;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.55)}
+  #reportBtn:active{transform:scale(.94)}
+  #reportMenu{position:absolute;left:12px;bottom:76px;z-index:601;display:none;flex-direction:column;gap:8px;max-height:60vh;overflow:auto}
+  #reportMenu.on{display:flex}
+  #reportMenu button{display:flex;align-items:center;gap:9px;background:rgba(18,26,22,.97);border:1px solid var(--line2);color:var(--t1);
+    border-radius:26px;padding:6px 16px 6px 6px;font-family:"Rajdhani",sans-serif;font-weight:700;font-size:14px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.5);white-space:nowrap}
+  #reportMenu button .em{width:32px;height:32px;flex:0 0 32px;border-radius:50%;display:grid;place-items:center;font-size:17px}
   #styleBtn{position:absolute;right:12px;bottom:70px;z-index:600;width:48px;height:48px;border-radius:50%;
     background:rgba(18,26,22,.94);border:1px solid var(--line2);color:var(--acc);font-size:20px;
     display:grid;place-items:center;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5)}
@@ -296,6 +304,8 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
   <button id="hdgBtn" onclick="toggleHeadingUp()" title="Hartă pe direcția de mers"><span data-ic="compass" data-sz="22"></span></button>
   <button id="styleBtn" onclick="cycleStyle()" title="Stil hartă"><span data-ic="layers" data-sz="22"></span></button>
   <button id="locBtn" onclick="locateMe()" title="Unde sunt"><span data-ic="locate" data-sz="22"></span></button>
+  <button id="reportBtn" onclick="toggleReportMenu()" title="Raportează o alertă"><span data-ic="alert" data-sz="24"></span></button>
+  <div id="reportMenu"></div>
 </div>
 
 <!-- sheet ÎNREGISTRARE -->
@@ -407,7 +417,8 @@ const ICP={
   layers:'<polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>',
   compass:'<circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>',
   traffic:'<rect x="8" y="2" width="8" height="20" rx="4"/><line x1="8" y1="7" x2="4" y2="7"/><line x1="8" y1="17" x2="4" y2="17"/><line x1="16" y1="7" x2="20" y2="7"/><line x1="16" y1="12" x2="20" y2="12"/><circle cx="12" cy="7" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="12" cy="17" r="1.3"/>',
-  fuel:'<line x1="3" y1="22" x2="15" y2="22"/><line x1="4" y1="9" x2="14" y2="9"/><path d="M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18"/><path d="M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 4 0V9.83a2 2 0 0 0-.59-1.42L18 5"/>'
+  fuel:'<line x1="3" y1="22" x2="15" y2="22"/><line x1="4" y1="9" x2="14" y2="9"/><path d="M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18"/><path d="M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 4 0V9.83a2 2 0 0 0-.59-1.42L18 5"/>',
+  alert:'<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h16.9a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>'
 };
 function ic(n,s){var x=s||18;return '<svg class="ic" width="'+x+'" height="'+x+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+(ICP[n]||"")+'</svg>';}
 function fillIcons(r){(r||document).querySelectorAll("[data-ic]").forEach(function(el){el.innerHTML=ic(el.getAttribute("data-ic"),el.getAttribute("data-sz")||20);});}
@@ -509,6 +520,83 @@ async function loadIncidents(){
     });
   }catch(e){}
 }
+// ---- Alerte comunitare (mini-Waze): raportare + afișare + vot ----
+const ALERT_TYPES=[
+  {t:"police",label:"Poliție",emoji:"🚓",color:"#4d9fff"},
+  {t:"radar",label:"Radar",emoji:"📷",color:"#9b6bff"},
+  {t:"accident",label:"Accident",emoji:"🚗",color:"#ff3b3b"},
+  {t:"hazard",label:"Pericol",emoji:"⚠️",color:"#eab54a"},
+  {t:"pothole",label:"Groapă",emoji:"🕳️",color:"#ff8a3d"},
+  {t:"block",label:"Blocaj",emoji:"🚧",color:"#ff2d95"}
+];
+function alertDef(t){ for(var i=0;i<ALERT_TYPES.length;i++) if(ALERT_TYPES[i].t===t) return ALERT_TYPES[i]; return {emoji:"⚠️",color:"#eab54a",label:t}; }
+let reportMenuOpen=false, alertMarkers={}, alertTimer=null;
+function buildReportMenu(){
+  var el=document.getElementById("reportMenu"); if(!el) return;
+  el.innerHTML=ALERT_TYPES.map(function(a){ return '<button onclick="reportAlert(\\''+a.t+'\\')"><span class="em" style="background:'+a.color+'26;border:1px solid '+a.color+'">'+a.emoji+'</span>'+a.label+'</button>'; }).join("");
+}
+function toggleReportMenu(){
+  reportMenuOpen=!reportMenuOpen;
+  var el=document.getElementById("reportMenu"); if(!el) return;
+  if(reportMenuOpen && !el.innerHTML) buildReportMenu();
+  el.classList.toggle("on",reportMenuOpen);
+}
+async function reportAlert(t){
+  reportMenuOpen=false; var el=document.getElementById("reportMenu"); if(el) el.classList.remove("on");
+  var pos=myPos||(map?[map.getCenter().lat,map.getCenter().lng]:null);
+  if(!pos){ toast("Nu-ți știu poziția încă."); return; }
+  var def=alertDef(t);
+  try{
+    var r=await fetch(API+"/api/my/alerts",{method:"POST",headers:Object.assign({"Content-Type":"application/json"},hdr()),body:JSON.stringify({type:t,lat:pos[0],lng:pos[1]})});
+    if(r.ok){ toast(def.emoji+" "+def.label+" raportat — mulțumim!"); loadAlerts(); }
+    else { var d=await r.json(); toast(d.error||"Eroare la raportare."); }
+  }catch(e){ toast("Eroare de rețea."); }
+}
+function alertIcon(type){
+  var a=alertDef(type);
+  var html='<div style="position:relative;width:34px;height:42px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.6))">'
+    +'<svg width="34" height="42" viewBox="0 0 34 42"><path d="M17 0C8 0 0 7 0 16c0 12 17 26 17 26s17-14 17-26C34 7 26 0 17 0z" fill="'+a.color+'" stroke="#0a0f0d" stroke-width="1.8"/></svg>'
+    +'<div style="position:absolute;top:4px;left:0;width:34px;text-align:center;font-size:17px;line-height:1">'+a.emoji+'</div></div>';
+  return L.divIcon({className:"flagmk",html:html,iconSize:[34,42],iconAnchor:[17,42],popupAnchor:[0,-38]});
+}
+function fmtAge(s){ if(s<60) return "acum"; var m=Math.round(s/60); if(m<60) return "acum "+m+" min"; return "acum "+Math.round(m/60)+" h"; }
+function clearAlerts(){ Object.keys(alertMarkers).forEach(function(k){ if(map) map.removeLayer(alertMarkers[k]); }); alertMarkers={}; }
+async function loadAlerts(){
+  if(!map||!key) return;
+  if(map.getZoom()<11){ clearAlerts(); return; }
+  try{
+    var bb=map.getBounds();
+    var bbox=bb.getWest()+","+bb.getSouth()+","+bb.getEast()+","+bb.getNorth();
+    var r=await fetch(API+"/api/my/alerts?bbox="+encodeURIComponent(bbox),{headers:hdr()}); var d=await r.json();
+    renderAlerts(d.alerts||[]);
+  }catch(e){}
+}
+function renderAlerts(list){
+  if(!map) return; var keep={};
+  list.forEach(function(a){
+    keep[a.id]=1; var def=alertDef(a.type);
+    var pop='<div style="min-width:158px;text-align:center"><div style="font-size:26px">'+def.emoji+'</div>'
+      +'<div style="font-weight:700;font-family:\\'Rajdhani\\',sans-serif;font-size:15px;color:#eafcff">'+esc(def.label)+'</div>'
+      +'<div style="font-size:11px;color:#7c9488;margin:2px 0 8px">'+fmtAge(a.age_s)+' · 👍 '+a.confirms+' · 👎 '+a.denies+'</div>'
+      +'<div style="display:flex;gap:6px"><button onclick="voteAlert('+a.id+',1)" style="flex:1;background:#1c7a52;color:#fff;border:none;border-radius:8px;padding:8px;font-weight:700;cursor:pointer">Încă e 👍</button>'
+      +'<button onclick="voteAlert('+a.id+',-1)" style="flex:1;background:#7a1c1c;color:#fff;border:none;border-radius:8px;padding:8px;font-weight:700;cursor:pointer">A dispărut 👎</button></div></div>';
+    if(alertMarkers[a.id]){ alertMarkers[a.id].setLatLng([a.lat,a.lng]); var pp=alertMarkers[a.id].getPopup(); if(pp) pp.setContent(pop); }
+    else alertMarkers[a.id]=L.marker([a.lat,a.lng],{icon:alertIcon(a.type),zIndexOffset:800}).bindPopup(pop).addTo(map);
+  });
+  Object.keys(alertMarkers).forEach(function(k){ if(!keep[k]){ if(map)map.removeLayer(alertMarkers[k]); delete alertMarkers[k]; } });
+}
+async function voteAlert(id,v){
+  try{
+    var r=await fetch(API+"/api/my/alerts/"+id+"/vote",{method:"POST",headers:Object.assign({"Content-Type":"application/json"},hdr()),body:JSON.stringify({v:v})});
+    var d=await r.json();
+    if(r.ok){
+      if(d.removed){ toast("Mulțumim — alerta a fost eliminată."); if(map){ map.closePopup(); if(alertMarkers[id]){ map.removeLayer(alertMarkers[id]); delete alertMarkers[id]; } } }
+      else { toast(v>0?"Confirmat, mulțumim!":"Notat, mulțumim!"); loadAlerts(); }
+    } else toast(d.error||"Eroare.");
+  }catch(e){ toast("Eroare de rețea."); }
+}
+function startAlerts(){ loadAlerts(); if(alertTimer) clearInterval(alertTimer); alertTimer=setInterval(loadAlerts,15000); if(map) map.on("moveend",loadAlerts); }
+
 // nivel de trafic pe un traseu salvat: cât e aglomerat și dacă merită acum
 async function checkRouteTraffic(id){
   toast("Verific traficul pe traseu…");
@@ -625,7 +713,6 @@ function initMap(){
     map=L.map("mapCanvas",{zoomControl:false}).setView([45.9432,24.9668],7);
     mapRotEl=document.getElementById("mapRot");
     addBase();
-    L.control.zoom({position:"bottomleft"}).addTo(map);
     // Dacă utilizatorul mișcă/zoom-uiește harta în timpul navigației, nu-l mai recentrăm
     map.on("movestart zoomstart", function(){
       if(selfMove) return;
@@ -1728,6 +1815,7 @@ loadList();
 loadParty();
 loadMe();
 requestWake();
+startAlerts();
 setTimeout(checkRecDraft, 700);
 </script>
 </body>
