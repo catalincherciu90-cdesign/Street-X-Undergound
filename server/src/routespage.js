@@ -32,30 +32,30 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
   #mapRot.rot{left:-21%;top:-21%;width:142%;height:142%}
   #mapCanvas{width:100%;height:100%}
   .leaflet-container{background:#0a1418}
-  #hdgBtn{position:absolute;right:12px;bottom:206px;z-index:600;width:48px;height:48px;border-radius:50%;
-    background:rgba(18,26,22,.94);border:1px solid var(--line2);color:var(--acc);font-size:20px;
-    display:grid;place-items:center;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5)}
-  #hdgBtn:active{transform:scale(.94)}
+  /* butoane hartă grupate într-un buton principal — bun pentru split-screen */
+  #toolFab{position:absolute;right:12px;bottom:14px;z-index:600;width:52px;height:52px}
+  #toolMain{position:absolute;right:0;bottom:0;width:52px;height:52px;border-radius:50%;
+    background:rgba(18,26,22,.96);border:1px solid var(--line2);color:var(--acc);
+    display:grid;place-items:center;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.55);transition:transform .22s}
+  #toolFab.open #toolMain{transform:rotate(135deg);color:var(--pink)}
+  .tbtn{position:absolute;right:4px;bottom:4px;width:44px;height:44px;border-radius:50%;
+    background:rgba(18,26,22,.96);border:1px solid var(--line2);color:var(--acc);
+    display:grid;place-items:center;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5);
+    opacity:0;transform:translate(0,0) scale(.3);pointer-events:none;
+    transition:transform .24s cubic-bezier(.2,.85,.3,1),opacity .18s}
+  #toolFab.open .tbtn{opacity:1;pointer-events:auto}
+  #toolFab.open .tbtn:nth-child(1){transform:translate(0,-92px)}
+  #toolFab.open .tbtn:nth-child(2){transform:translate(-28px,-88px)}
+  #toolFab.open .tbtn:nth-child(3){transform:translate(-54px,-74px)}
+  #toolFab.open .tbtn:nth-child(4){transform:translate(-74px,-54px)}
+  #toolFab.open .tbtn:nth-child(5){transform:translate(-88px,-28px)}
+  #toolFab.open .tbtn:nth-child(6){transform:translate(-92px,0)}
+  .tbtn:active{filter:brightness(1.25)}
+  #wazeBtn{color:var(--cyan)}
   #hdgBtn.on{background:var(--acc);color:#08130d;border-color:transparent}
-  #trafBtn{position:absolute;right:12px;bottom:262px;z-index:600;width:48px;height:48px;border-radius:50%;
-    background:rgba(18,26,22,.94);border:1px solid var(--line2);color:var(--acc);
-    display:grid;place-items:center;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5)}
-  #trafBtn:active{transform:scale(.94)}
   #trafBtn.on{background:#e56a1c;border-color:transparent;color:#160a02}
-  #poiBtn{position:absolute;right:12px;bottom:318px;z-index:600;width:48px;height:48px;border-radius:50%;
-    background:rgba(18,26,22,.94);border:1px solid var(--line2);color:var(--acc);
-    display:grid;place-items:center;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5)}
-  #poiBtn:active{transform:scale(.94)}
   #poiBtn.on{background:#4d9fff;border-color:transparent;color:#0a1420}
-  #wazeBtn{position:absolute;right:12px;bottom:374px;z-index:600;width:48px;height:48px;border-radius:50%;
-    background:rgba(18,26,22,.94);border:1px solid var(--line2);color:var(--cyan);
-    display:grid;place-items:center;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5)}
-  #wazeBtn:active{transform:scale(.94)}
   .glowline{filter:drop-shadow(0 0 3px rgba(125,249,255,.9)) drop-shadow(0 0 7px rgba(34,224,138,.5))}
-  #locBtn{position:absolute;right:12px;bottom:14px;z-index:600;width:48px;height:48px;border-radius:50%;
-    background:rgba(18,26,22,.94);border:1px solid var(--line2);color:var(--acc);font-size:22px;
-    display:grid;place-items:center;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5)}
-  #locBtn:active{transform:scale(.94)}
   #reportBtn{position:absolute;left:12px;bottom:14px;z-index:601;width:52px;height:52px;border-radius:50%;
     background:linear-gradient(180deg,#ff3b3b,#d81f1f);border:none;color:#fff;display:grid;place-items:center;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.55)}
   #reportBtn:active{transform:scale(.94)}
@@ -64,10 +64,6 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
   #reportMenu button{display:flex;align-items:center;gap:9px;background:rgba(18,26,22,.97);border:1px solid var(--line2);color:var(--t1);
     border-radius:26px;padding:6px 16px 6px 6px;font-family:"Rajdhani",sans-serif;font-weight:700;font-size:14px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.5);white-space:nowrap}
   #reportMenu button .em{width:32px;height:32px;flex:0 0 32px;border-radius:50%;display:grid;place-items:center;font-size:17px}
-  #styleBtn{position:absolute;right:12px;bottom:70px;z-index:600;width:48px;height:48px;border-radius:50%;
-    background:rgba(18,26,22,.94);border:1px solid var(--line2);color:var(--acc);font-size:20px;
-    display:grid;place-items:center;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5)}
-  #styleBtn:active{transform:scale(.94)}
   .flagmk{background:none!important;border:none!important}
   .arrowmk{background:none!important;border:none!important}
   .flagmk .fe{font-size:24px;line-height:1;filter:drop-shadow(0 1px 2px #000);text-align:center}
@@ -194,7 +190,7 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
     box-shadow:0 4px 14px rgba(0,0,0,.5)}
   #clearBtn:active{transform:scale(.95)}
   body.nav-on #clearBtn{display:none!important}
-  #speedo{position:absolute;right:12px;bottom:128px;z-index:600;display:none;flex-direction:column;
+  #speedo{position:absolute;right:12px;top:62px;z-index:600;display:none;flex-direction:column;
     align-items:center;justify-content:center;width:68px;height:68px;border-radius:50%;
     background:rgba(10,15,13,.9);border:2px solid var(--cyan);
     box-shadow:0 0 14px rgba(40,224,255,.35),inset 0 0 10px rgba(40,224,255,.15)}
@@ -303,12 +299,15 @@ export const ROUTES_HTML = /* html */ `<!doctype html>
   <div id="ttBanner"></div>
   <button id="clearBtn" onclick="clearRouteView()"><span data-ic="x" data-sz="15"></span> Anulează</button>
   <div id="speedo"><b id="spVal">0</b><span>km/h</span></div>
-  <button id="wazeBtn" onclick="openWazeApp()" title="Deschide Waze (side-by-side în split-screen)"><span data-ic="nav" data-sz="22"></span></button>
-  <button id="poiBtn" onclick="togglePoi()" title="Benzinării în zonă"><span data-ic="fuel" data-sz="22"></span></button>
-  <button id="trafBtn" onclick="toggleTraffic()" title="Trafic live"><span data-ic="traffic" data-sz="22"></span></button>
-  <button id="hdgBtn" onclick="toggleHeadingUp()" title="Hartă pe direcția de mers"><span data-ic="compass" data-sz="22"></span></button>
-  <button id="styleBtn" onclick="cycleStyle()" title="Stil hartă"><span data-ic="layers" data-sz="22"></span></button>
-  <button id="locBtn" onclick="locateMe()" title="Unde sunt"><span data-ic="locate" data-sz="22"></span></button>
+  <div id="toolFab">
+    <button class="tbtn" id="locBtn" onclick="locateMe()" title="Unde sunt"><span data-ic="locate" data-sz="21"></span></button>
+    <button class="tbtn" id="styleBtn" onclick="cycleStyle()" title="Stil hartă"><span data-ic="layers" data-sz="21"></span></button>
+    <button class="tbtn" id="hdgBtn" onclick="toggleHeadingUp()" title="Hartă pe direcția de mers"><span data-ic="compass" data-sz="21"></span></button>
+    <button class="tbtn" id="trafBtn" onclick="toggleTraffic()" title="Trafic live"><span data-ic="traffic" data-sz="21"></span></button>
+    <button class="tbtn" id="poiBtn" onclick="togglePoi()" title="Benzinării în zonă"><span data-ic="fuel" data-sz="21"></span></button>
+    <button class="tbtn" id="wazeBtn" onclick="openWazeApp()" title="Deschide Waze (side-by-side în split-screen)"><span data-ic="nav" data-sz="21"></span></button>
+    <button id="toolMain" onclick="toggleTools()" title="Unelte hartă"><span data-ic="plus" data-sz="24"></span></button>
+  </div>
   <button id="reportBtn" onclick="toggleReportMenu()" title="Raportează o alertă"><span data-ic="alert" data-sz="24"></span></button>
   <div id="reportMenu"></div>
 </div>
@@ -546,6 +545,8 @@ function toggleReportMenu(){
   if(reportMenuOpen && !el.innerHTML) buildReportMenu();
   el.classList.toggle("on",reportMenuOpen);
 }
+// grup de butoane hartă (deschide/închide evantaiul)
+function toggleTools(){ var f=document.getElementById("toolFab"); if(f) f.classList.toggle("open"); }
 async function reportAlert(t){
   reportMenuOpen=false; var el=document.getElementById("reportMenu"); if(el) el.classList.remove("on");
   var pos=myPos||(map?[map.getCenter().lat,map.getCenter().lng]:null);
