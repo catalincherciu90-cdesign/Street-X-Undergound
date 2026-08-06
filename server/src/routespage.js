@@ -597,6 +597,18 @@ async function voteAlert(id,v){
 }
 function startAlerts(){ loadAlerts(); if(alertTimer) clearInterval(alertTimer); alertTimer=setInterval(loadAlerts,15000); if(map) map.on("moveend",loadAlerts); }
 
+// deschide Waze cu navigație către un punct (side-by-side dacă ești în split-screen)
+function openWaze(lat,lng){
+  if(window.SXURec && window.SXURec.openWaze){ try{ window.SXURec.openWaze(lat,lng); toast("Deschid Waze… (pentru side-by-side, pornește split-screen din Recente)"); return; }catch(e){} }
+  try{ window.location.href="https://waze.com/ul?ll="+lat+","+lng+"&navigate=yes"; }catch(e){ toast("Nu pot deschide Waze."); }
+}
+async function wazeToRoute(id){
+  try{
+    var r=await fetch(API+"/api/my/routes/"+id,{headers:hdr()}); var d=await r.json();
+    if(d.geometry&&d.geometry.length){ var s=d.geometry[0]; openWaze(s[0],s[1]); }
+    else toast("Nu pot deschide traseul în Waze.");
+  }catch(e){ toast("Eroare de rețea."); }
+}
 // nivel de trafic pe un traseu salvat: cât e aglomerat și dacă merită acum
 async function checkRouteTraffic(id){
   toast("Verific traficul pe traseu…");
@@ -929,6 +941,7 @@ function routeItemHtml(rt,mine){
     +'<button class="rbtn cyan" onclick="viewRoute('+rt.id+')">'+ic("eye",14)+' Vezi</button>'
     +'<button class="rbtn" onclick="startNav('+rt.id+')">'+ic("nav",14)+' Condu</button>'
     +'<button class="rbtn" onclick="checkRouteTraffic('+rt.id+')">'+ic("traffic",14)+' Trafic</button>'
+    +'<button class="rbtn" onclick="wazeToRoute('+rt.id+')">'+ic("nav",14)+' Waze</button>'
     +'<button class="rbtn" onclick="startTimeTrial('+rt.id+')">'+ic("timer",14)+' Contra-timp</button>'
     +'<button class="rbtn" onclick="startParty('+rt.id+')">'+ic("users",14)+' Party</button>';
   if(mine){

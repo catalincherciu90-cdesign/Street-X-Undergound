@@ -147,5 +147,18 @@ class CoursesActivity : AppCompatActivity() {
                 startedByRec = false
             }
         }
+        /** Deschide Waze cu navigație către un punct. Dacă ești în split-screen, apare în panoul alăturat. */
+        @JavascriptInterface fun openWaze(lat: Double, lng: Double) {
+            val uri = Uri.parse("https://waze.com/ul?ll=$lat,$lng&navigate=yes")
+            try {
+                startActivity(Intent(Intent.ACTION_VIEW, uri).apply {
+                    setPackage("com.waze")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT)
+                })
+            } catch (e: Exception) {
+                // Waze neinstalat → deschide linkul (browser / Google Play)
+                try { startActivity(Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (e2: Exception) {}
+            }
+        }
     }
 }
